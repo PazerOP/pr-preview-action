@@ -85,6 +85,8 @@ jobs:
         steps:
             - name: Checkout caller repository
               uses: actions/checkout@v6
+              with:
+                  sparse-checkout: ${{ inputs.source-dir }}
 
             - name: Checkout action source
               uses: actions/checkout@v6
