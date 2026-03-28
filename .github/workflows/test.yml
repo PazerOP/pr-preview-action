@@ -40,5 +40,13 @@ jobs:
             - name: Type check
               run: pnpm exec tsc --noEmit
 
+            - name: Verify dist/ is up to date
+              run: |
+                  pnpm exec tsc
+                  if ! git diff --exit-code dist/; then
+                      echo "::error::dist/ is out of date. Run 'pnpm exec tsc' and commit the result."
+                      exit 1
+                  fi
+
             - name: Run tests
               run: bash test/run-unit-tests.sh
