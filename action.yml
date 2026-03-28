@@ -135,34 +135,37 @@ runs:
           run: pnpm --dir $GITHUB_ACTION_PATH exec ts-node $GITHUB_ACTION_PATH/src/status.ts pending "Deploying preview..." "${{ env.preview_url }}"
           shell: bash
 
+        - name: Checkout preview branch
+          if: env.deployment_action == 'deploy'
+          id: checkout-preview
+          uses: actions/checkout@v4
+          with:
+              ref: ${{ inputs.preview-branch }}
+              path: __gh-pages-content
+              token: ${{ inputs.token }}
+          continue-on-error: true
+
+        - name: Init preview branch if missing
+          if: env.deployment_action == 'deploy' && steps.checkout-preview.outcome == 'failure'
+          run: |
+              mkdir -p __gh-pages-content
+              git -C __gh-pages-content init
+              git -C __gh-pages-content checkout --orphan "${{ inputs.preview-branch }}"
+              git -C __gh-pages-content remote add origin "https://x-access-token:${{ inputs.token }}@github.com/${GITHUB_REPOSITORY}.git"
+          shell: bash
+
         - name: Deploy preview to branch
           if: env.deployment_action == 'deploy'
-          env:
-              TOKEN: ${{ inputs.token }}
-              PREVIEW_BRANCH: ${{ inputs.preview-branch }}
-              SOURCE_DIR: ${{ inputs.source-dir }}
-              PREVIEW_FILE_PATH: ${{ env.preview_file_path }}
-              COMMIT_MESSAGE: ${{ inputs.deploy-commit-message }}
           run: |
-              rm -rf __gh-pages-content
-              git clone --depth 1 --branch "$PREVIEW_BRANCH" \
-                "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
-                __gh-pages-content 2>/dev/null || {
-                  mkdir -p __gh-pages-content
-                  git -C __gh-pages-content init
-                  git -C __gh-pages-content checkout --orphan "$PREVIEW_BRANCH"
-                  git -C __gh-pages-content remote add origin \
-                    "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-              }
-              rm -rf "__gh-pages-content/$PREVIEW_FILE_PATH"
-              mkdir -p "__gh-pages-content/$PREVIEW_FILE_PATH"
-              cp -r "$GITHUB_WORKSPACE/$SOURCE_DIR"/. "__gh-pages-content/$PREVIEW_FILE_PATH/"
+              rm -rf "__gh-pages-content/${{ env.preview_file_path }}"
+              mkdir -p "__gh-pages-content/${{ env.preview_file_path }}"
+              cp -r "$GITHUB_WORKSPACE/${{ inputs.source-dir }}"/. "__gh-pages-content/${{ env.preview_file_path }}/"
               cd __gh-pages-content
-              git add -A
               git config user.name "pr-preview-action[bot]"
               git config user.email "pr-preview-action[bot]@users.noreply.github.com"
-              git diff --cached --quiet || git commit -m "$COMMIT_MESSAGE"
-              git push origin "$PREVIEW_BRANCH"
+              git add -A
+              git diff --cached --quiet || git commit -m "${{ inputs.deploy-commit-message }}"
+              git push -u origin "${{ inputs.preview-branch }}"
               rm -rf .git
           shell: bash
 
@@ -215,25 +218,24 @@ runs:
 
         # REMOVAL
 
+        - name: Checkout preview branch
+          if: env.deployment_action == 'remove'
+          uses: actions/checkout@v4
+          with:
+              ref: ${{ inputs.preview-branch }}
+              path: __gh-pages-content
+              token: ${{ inputs.token }}
+
         - name: Remove preview from branch
           if: env.deployment_action == 'remove'
-          env:
-              TOKEN: ${{ inputs.token }}
-              PREVIEW_BRANCH: ${{ inputs.preview-branch }}
-              PREVIEW_FILE_PATH: ${{ env.preview_file_path }}
-              COMMIT_MESSAGE: ${{ inputs.remove-commit-message }}
           run: |
-              rm -rf __gh-pages-content
-              git clone --depth 1 --branch "$PREVIEW_BRANCH" \
-                "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
-                __gh-pages-content
               cd __gh-pages-content
-              rm -rf "$PREVIEW_FILE_PATH"
-              git add -A
+              rm -rf "${{ env.preview_file_path }}"
               git config user.name "pr-preview-action[bot]"
               git config user.email "pr-preview-action[bot]@users.noreply.github.com"
-              git diff --cached --quiet || git commit -m "$COMMIT_MESSAGE"
-              git push origin "$PREVIEW_BRANCH"
+              git add -A
+              git diff --cached --quiet || git commit -m "${{ inputs.remove-commit-message }}"
+              git push
               rm -rf .git
           shell: bash
 
