@@ -135,38 +135,15 @@ runs:
           run: pnpm --dir $GITHUB_ACTION_PATH exec ts-node $GITHUB_ACTION_PATH/src/status.ts pending "Deploying preview..." "${{ env.preview_url }}"
           shell: bash
 
-        - name: Checkout preview branch
-          if: env.deployment_action == 'deploy'
-          id: checkout-preview
-          uses: actions/checkout@v4
-          with:
-              ref: ${{ inputs.preview-branch }}
-              path: __gh-pages-content
-              token: ${{ inputs.token }}
-          continue-on-error: true
-
-        - name: Init preview branch if missing
-          if: env.deployment_action == 'deploy' && steps.checkout-preview.outcome == 'failure'
-          run: |
-              mkdir -p __gh-pages-content
-              git -C __gh-pages-content init
-              git -C __gh-pages-content checkout --orphan "${{ inputs.preview-branch }}"
-              git -C __gh-pages-content remote add origin "https://x-access-token:${{ inputs.token }}@github.com/${GITHUB_REPOSITORY}.git"
-          shell: bash
-
         - name: Deploy preview to branch
           if: env.deployment_action == 'deploy'
-          run: |
-              rm -rf "__gh-pages-content/${{ env.preview_file_path }}"
-              mkdir -p "__gh-pages-content/${{ env.preview_file_path }}"
-              cp -r "$GITHUB_WORKSPACE/${{ inputs.source-dir }}"/. "__gh-pages-content/${{ env.preview_file_path }}/"
-              cd __gh-pages-content
-              git config user.name "pr-preview-action[bot]"
-              git config user.email "pr-preview-action[bot]@users.noreply.github.com"
-              git add -A
-              git diff --cached --quiet || git commit -m "${{ inputs.deploy-commit-message }}"
-              git push -u origin "${{ inputs.preview-branch }}"
-              rm -rf .git
+          env:
+              INPUT_BRANCH: ${{ inputs.preview-branch }}
+              INPUT_TOKEN: ${{ inputs.token }}
+              INPUT_SOURCE_DIR: ${{ inputs.source-dir }}
+              INPUT_TARGET_PATH: ${{ env.preview_file_path }}
+              INPUT_COMMIT_MESSAGE: ${{ inputs.deploy-commit-message }}
+          run: pnpm --dir $GITHUB_ACTION_PATH exec ts-node $GITHUB_ACTION_PATH/src/git-update.ts deploy
           shell: bash
 
         - name: Upload Pages artifact
@@ -218,25 +195,14 @@ runs:
 
         # REMOVAL
 
-        - name: Checkout preview branch
-          if: env.deployment_action == 'remove'
-          uses: actions/checkout@v4
-          with:
-              ref: ${{ inputs.preview-branch }}
-              path: __gh-pages-content
-              token: ${{ inputs.token }}
-
         - name: Remove preview from branch
           if: env.deployment_action == 'remove'
-          run: |
-              cd __gh-pages-content
-              rm -rf "${{ env.preview_file_path }}"
-              git config user.name "pr-preview-action[bot]"
-              git config user.email "pr-preview-action[bot]@users.noreply.github.com"
-              git add -A
-              git diff --cached --quiet || git commit -m "${{ inputs.remove-commit-message }}"
-              git push
-              rm -rf .git
+          env:
+              INPUT_BRANCH: ${{ inputs.preview-branch }}
+              INPUT_TOKEN: ${{ inputs.token }}
+              INPUT_TARGET_PATH: ${{ env.preview_file_path }}
+              INPUT_COMMIT_MESSAGE: ${{ inputs.remove-commit-message }}
+          run: pnpm --dir $GITHUB_ACTION_PATH exec ts-node $GITHUB_ACTION_PATH/src/git-update.ts remove
           shell: bash
 
         - name: Upload Pages artifact for removal
