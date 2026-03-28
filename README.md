@@ -96,8 +96,7 @@ All parameters are optional and have default values.
 | `qr-code` | QR code provider URL, or `"false"` to disable. <br><br> Default: `https://qr.rossjrw.com/?color.dark=0d1117&url=` |
 | `token` | Authentication token. <br><br> Default: `${{ github.token }}` |
 | `action` <br> (enum) | `deploy`, `remove`, or `auto`. <br> `auto` deploys on `opened`/`reopened`/`synchronize` and removes on `closed`. <br><br> Default: `auto` |
-| `commit-status` <br> (boolean) | Whether to set commit statuses on the PR head SHA. Shows pending/success/failure status with a link to the preview. <br><br> Default: `true` |
-| `commit-status-context` | The context string for commit statuses. <br><br> Default: `"Preview"` |
+| `commit-status-context` | The context string for commit statuses set on the PR head SHA. <br><br> Default: `"Preview"` |
 
 <details>
 <summary><b>Extra parameters for controlling the commits</b></summary>

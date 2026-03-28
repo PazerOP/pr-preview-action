@@ -48,7 +48,7 @@ jobs:
                   source-dir: test/fixtures/html
                   action: deploy
                   comment: false
-                  commit-status: false
+
                   git-config-name: GitHub Actions
                   git-config-email: actions@github.com
                   deploy-commit-message: deploy ${{ env.TEST_ID }} ${{ github.run_id }}
@@ -75,7 +75,7 @@ jobs:
                   source-dir: test/fixtures/html
                   action: deploy
                   comment: false
-                  commit-status: false
+
                   git-config-name: GitHub Actions
                   git-config-email: actions@github.com
                   deploy-commit-message: deploy ${{ env.TEST_ID }} ${{ github.run_id }}
@@ -98,7 +98,7 @@ jobs:
                   preview-branch: ${{ env.TEST_ID }}
                   action: remove
                   comment: false
-                  commit-status: false
+
                   git-config-name: GitHub Actions
                   git-config-email: actions@github.com
                   deploy-commit-message: deploy ${{ env.TEST_ID }} ${{ github.run_id }}
@@ -150,7 +150,7 @@ jobs:
                   source-dir: test/fixtures/html
                   action: deploy
                   comment: false
-                  commit-status: false
+
                   git-config-name: GitHub Actions
                   git-config-email: actions@github.com
                   deploy-commit-message: deploy ${{ env.TEST_ID }} ${{ github.run_id }}
@@ -201,7 +201,7 @@ jobs:
                   source-dir: test/fixtures/html
                   action: deploy
                   comment: false
-                  commit-status: false
+
                   git-config-name: GitHub Actions
                   git-config-email: actions@github.com
                   deploy-commit-message: deploy ${{ env.TEST_ID }} ${{ github.run_id }}
@@ -220,7 +220,7 @@ jobs:
                   source-dir: test/fixtures/html
                   action: deploy
                   comment: false
-                  commit-status: false
+
                   git-config-name: GitHub Actions
                   git-config-email: actions@github.com
                   deploy-commit-message: deploy ${{ env.TEST_ID }} ${{ github.run_id }}
@@ -239,7 +239,7 @@ jobs:
                   source-dir: test/fixtures/html
                   action: deploy
                   comment: false
-                  commit-status: false
+
                   git-config-name: GitHub Actions
                   git-config-email: actions@github.com
                   deploy-commit-message: deploy ${{ env.TEST_ID }} ${{ github.run_id }}
@@ -292,7 +292,7 @@ jobs:
                   source-dir: test/fixtures/html
                   action: deploy
                   comment: false
-                  commit-status: false
+
                   git-config-name: GitHub Actions
                   git-config-email: actions@github.com
                   deploy-commit-message: deploy ${{ env.TEST_ID }} ${{ github.run_id }}
@@ -315,7 +315,7 @@ jobs:
                   preview-branch: main
                   action: remove
                   comment: false
-                  commit-status: false
+
                   git-config-name: GitHub Actions
                   git-config-email: actions@github.com
                   deploy-commit-message: deploy ${{ env.TEST_ID }} ${{ github.run_id }}

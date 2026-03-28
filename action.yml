@@ -73,10 +73,6 @@ inputs:
 
         required: false
         default: auto
-    commit-status:
-        description: Whether to set commit statuses on the PR head SHA to indicate deployment progress.
-        required: false
-        default: "true"
     commit-status-context:
         description: The context string for commit statuses (e.g., shown as the status check name).
         required: false
@@ -130,9 +126,7 @@ runs:
         # DEPLOYMENT
 
         - name: Set pending commit status
-          if: |
-              env.deployment_action == 'deploy' &&
-              (inputs.commit-status == 'true' || inputs.commit-status == true)
+          if: env.deployment_action == 'deploy'
           env:
               INPUT_TOKEN: ${{ inputs.token }}
               INPUT_SHA: ${{ github.event.pull_request.head.sha }}
@@ -180,7 +174,6 @@ runs:
         - name: Set success commit status
           if: |
               env.deployment_action == 'deploy' &&
-              (inputs.commit-status == 'true' || inputs.commit-status == true) &&
               steps.pages-deploy.outcome == 'success'
           env:
               INPUT_TOKEN: ${{ inputs.token }}
@@ -206,8 +199,7 @@ runs:
         - name: Set failure commit status
           if: |
               failure() &&
-              env.deployment_action == 'deploy' &&
-              (inputs.commit-status == 'true' || inputs.commit-status == true)
+              env.deployment_action == 'deploy'
           env:
               INPUT_TOKEN: ${{ inputs.token }}
               INPUT_SHA: ${{ github.event.pull_request.head.sha }}
