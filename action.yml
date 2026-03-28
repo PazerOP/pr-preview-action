@@ -49,9 +49,9 @@ inputs:
         required: false
         default: "true"
     qr-code:
-        description: URL to a QR code provider, or "false" to disable.
+        description: Whether to include a QR code in the PR comment. Set to "false" to disable.
         required: false
-        default: "https://qr.rossjrw.com/?color.dark=0d1117&url="
+        default: "true"
     deploy-commit-message:
         description: The commit message to use when adding/updating a preview.
         required: false
@@ -76,12 +76,6 @@ outputs:
     deployment-action:
         description: Resolved value of the 'action' input parameter (deploy, remove, none).
         value: ${{ steps.setup.outputs.deployment_action }}
-    pages-base-url:
-        description: What this Action thinks the base URL of the GitHub Pages site is.
-        value: ${{ steps.setup.outputs.pages_base_url }}
-    preview-url-path:
-        description: Path to the preview from the Pages base URL.
-        value: ${{ steps.setup.outputs.preview_url_path }}
     preview-url:
         description: Full URL to the preview.
         value: ${{ steps.setup.outputs.preview_url }}

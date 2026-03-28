@@ -32,9 +32,9 @@ on:
                 type: string
                 default: "true"
             qr-code:
-                description: URL to a QR code provider, or "false" to disable.
+                description: Whether to include a QR code in the PR comment. Set to "false" to disable.
                 type: string
-                default: "https://qr.rossjrw.com/?color.dark=0d1117&url="
+                default: "true"
             action:
                 description: "Determines what this workflow will do when it is executed. Supported values: deploy, remove, auto (default)."
                 type: string
@@ -55,12 +55,6 @@ on:
             deployment-action:
                 description: Resolved action (deploy, remove, none).
                 value: ${{ jobs.preview.outputs.deployment_action }}
-            pages-base-url:
-                description: What this workflow thinks the base URL of the GitHub Pages site is.
-                value: ${{ jobs.preview.outputs.pages_base_url }}
-            preview-url-path:
-                description: Path to the preview from the Pages base URL.
-                value: ${{ jobs.preview.outputs.preview_url_path }}
             preview-url:
                 description: Full URL to the preview.
                 value: ${{ jobs.preview.outputs.preview_url }}
@@ -80,8 +74,6 @@ jobs:
         if: github.event.pull_request.head.repo.full_name == github.repository
         outputs:
             deployment_action: ${{ steps.setup.outputs.deployment_action }}
-            pages_base_url: ${{ steps.setup.outputs.pages_base_url }}
-            preview_url_path: ${{ steps.setup.outputs.preview_url_path }}
             preview_url: ${{ steps.setup.outputs.preview_url }}
         environment:
             name: github-pages

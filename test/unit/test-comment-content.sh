@@ -13,13 +13,13 @@ export preview_url="https://test-owner.github.io/test-repo/pr-preview/pr-12345/?
 export action_start_time="2025-01-01 12:00 UTC"
 export INPUT_PREVIEW_BRANCH="gh-pages"
 export INPUT_COMMENT="true"
-export INPUT_QR_CODE=""
+export INPUT_QR_CODE="true"
 export DRY_RUN="true"
 export deployment_action="deploy"
 
 comment_file="comment-generated.md"
 
-echo >&2 "test comment: deployment"
+echo >&2 "test comment: deployment with QR code (default)"
 echo >&2 "==============================="
 node dist/comment.js > "$comment_file"
 cat >&2 "$comment_file"
@@ -29,8 +29,8 @@ assert_file_contains "$comment_file" "PR Preview Action"
 assert_file_contains "$comment_file" "$action_version"
 assert_file_contains "$comment_file" "$preview_url"
 assert_file_contains "$comment_file" "pr-preview"
-# No QR code when provider is empty
-assert_file_contains "$comment_file" "/?url=" && exit 1 || true
+# QR code should be a data URI, not an external URL
+assert_file_contains "$comment_file" "data:image/gif;base64,"
 
 echo >&2 "test comment: removal"
 echo >&2 "==============================="
@@ -42,25 +42,15 @@ echo >&2 "==============================="
 assert_file_contains "$comment_file" "PR Preview Action"
 assert_file_contains "$comment_file" "$action_version"
 assert_file_contains "$comment_file" "Preview removed"
-assert_file_contains "$comment_file" "/?url=" && exit 1 || true
 
-echo >&2 "test comment: deployment with QR code"
+echo >&2 "test comment: deployment with QR code disabled"
 echo >&2 "==============================="
 export deployment_action="deploy"
-export INPUT_QR_CODE="https://qr.example.com/?url="
+export INPUT_QR_CODE="false"
 node dist/comment.js > "$comment_file"
-export INPUT_QR_CODE=""
 cat >&2 "$comment_file"
 echo >&2 "==============================="
 
-assert_file_contains "$comment_file" "qr.example.com/?url=$preview_url"
-
-echo >&2 "test comment: deployment with QR code, backwards compatibility with qr-code:true"
-echo >&2 "==============================="
-export INPUT_QR_CODE="true"
-node dist/comment.js > "$comment_file"
-export INPUT_QR_CODE=""
-cat >&2 "$comment_file"
-echo >&2 "==============================="
-
-assert_file_contains "$comment_file" "qr.rossjrw.com"
+# Should NOT contain a QR code
+assert_file_contains "$comment_file" "data:image/gif;base64," && exit 1 || true
+assert_file_contains "$comment_file" "$preview_url"

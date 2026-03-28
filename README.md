@@ -83,7 +83,7 @@ All parameters are optional except `source-dir`.
 | `umbrella-dir` | Path to the directory containing all previews. <br> Default: `pr-preview` |
 | `action` | `deploy`, `remove`, or `auto`. `auto` deploys on `opened`/`reopened`/`synchronize` and removes on `closed`. <br> Default: `auto` |
 | `comment` | Whether to leave a sticky comment on the PR. <br> Default: `"true"` |
-| `qr-code` | QR code provider URL, or `"false"` to disable. <br> Default: `https://qr.rossjrw.com/?color.dark=0d1117&url=` |
+| `qr-code` | Whether to include a QR code in the PR comment. Set to `"false"` to disable. <br> Default: `"true"` |
 | `commit-status-context` | The context string for commit statuses. <br> Default: `"Preview"` |
 | `pr-number` | The PR number to use for the preview path. <br> Default: from event context |
 | `pages-base-url` | Base URL of the GitHub Pages site. <br> Default: auto-detected |
@@ -96,8 +96,6 @@ All parameters are optional except `source-dir`.
 | Output | Description |
 | --- | --- |
 | `deployment-action` | Resolved value of the `action` input (deploy, remove, none). |
-| `pages-base-url` | Base URL of the GitHub Pages site. |
-| `preview-url-path` | Path to the preview from the base URL. |
 | `preview-url` | Full URL to the preview (includes `?v={short_sha}` cache-busting param). |
 
 ## How it works
