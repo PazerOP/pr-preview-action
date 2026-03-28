@@ -114,10 +114,6 @@ The `gh-pages` branch serves as the source of truth for all content (production 
 
 If you use GitHub Actions to deploy your main site (e.g. on push to main), configure it to not delete the preview umbrella directory when pushing to `gh-pages`.
 
-## Legacy composite action
-
-The composite action (`uses: PazerOP/pr-preview-action@v1`) is still available but deprecated. It requires callers to manually configure permissions, concurrency, checkout, and token passing. The reusable workflow handles all of that internally and is the recommended approach.
-
 # Acknowledgements
 
 -   [rossjrw/pr-preview-action](https://github.com/rossjrw/pr-preview-action) (MIT), the original action this is forked from
