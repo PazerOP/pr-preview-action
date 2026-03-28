@@ -4,12 +4,6 @@ set -e
 
 source "$(dirname "$0")/../lib/assert.sh"
 
-# Ensure ts-node is available
-if ! pnpm exec ts-node --version &>/dev/null; then
-    echo "ts-node not found, installing dependencies..."
-    pnpm install --frozen-lockfile
-fi
-
 # Test configuration
 export GITHUB_REPOSITORY="test-owner/test-repo"
 export GITHUB_SERVER_URL="https://github.com"
@@ -27,7 +21,7 @@ comment_file="comment-generated.md"
 
 echo >&2 "test comment: deployment"
 echo >&2 "==============================="
-pnpm exec ts-node src/comment.ts > "$comment_file"
+node dist/comment.js > "$comment_file"
 cat >&2 "$comment_file"
 echo >&2 "==============================="
 
@@ -41,7 +35,7 @@ assert_file_contains "$comment_file" "/?url=" && exit 1 || true
 echo >&2 "test comment: removal"
 echo >&2 "==============================="
 export deployment_action="remove"
-pnpm exec ts-node src/comment.ts > "$comment_file"
+node dist/comment.js > "$comment_file"
 cat >&2 "$comment_file"
 echo >&2 "==============================="
 
@@ -54,7 +48,7 @@ echo >&2 "test comment: deployment with QR code"
 echo >&2 "==============================="
 export deployment_action="deploy"
 export INPUT_QR_CODE="https://qr.example.com/?url="
-pnpm exec ts-node src/comment.ts > "$comment_file"
+node dist/comment.js > "$comment_file"
 export INPUT_QR_CODE=""
 cat >&2 "$comment_file"
 echo >&2 "==============================="
@@ -64,7 +58,7 @@ assert_file_contains "$comment_file" "qr.example.com/?url=$preview_url"
 echo >&2 "test comment: deployment with QR code, backwards compatibility with qr-code:true"
 echo >&2 "==============================="
 export INPUT_QR_CODE="true"
-pnpm exec ts-node src/comment.ts > "$comment_file"
+node dist/comment.js > "$comment_file"
 export INPUT_QR_CODE=""
 cat >&2 "$comment_file"
 echo >&2 "==============================="

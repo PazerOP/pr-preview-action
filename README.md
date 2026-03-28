@@ -1,6 +1,6 @@
-# Deploy PR Preview action
+# Deploy PR Preview
 
-[GitHub Action](https://github.com/features/actions) that deploys previews of pull requests to [GitHub Pages](https://pages.github.com/) using artifact-based deployment. Works when GitHub Pages is configured with source set to **GitHub Actions**.
+Deploy previews of pull requests to [GitHub Pages](https://pages.github.com/). Works when GitHub Pages is configured with source set to **GitHub Actions**.
 
 Features:
 
@@ -18,26 +18,11 @@ Preview URLs look like this: `https://[owner].github.io/[repo]/pr-preview/pr-[nu
 
 # Setup
 
-## 1. Configure Pages source
-
 In your repository **Settings** > **Pages**, set the source to **GitHub Actions** (not "Deploy from a branch").
 
-## 2. Set workflow permissions
-
-Your workflow must declare these permissions:
-
-```yaml
-permissions:
-    contents: write       # push to gh-pages branch
-    pull-requests: write  # post sticky comments
-    pages: write          # deploy Pages artifact
-    id-token: write       # required by actions/deploy-pages
-    statuses: write       # set commit statuses (optional)
-```
-
-Alternatively, in **Settings** > **Actions** > **General** > **Workflow permissions**, select "Read and write permissions".
-
 # Usage
+
+Call the reusable workflow from your PR workflow:
 
 ```yaml
 # .github/workflows/preview.yml
@@ -45,68 +30,66 @@ name: Deploy PR previews
 
 on:
     pull_request:
-        types:
-            - opened
-            - reopened
-            - synchronize
-            - closed
-
-permissions:
-    contents: write
-    pull-requests: write
-    pages: write
-    id-token: write
-    statuses: write
-
-concurrency: preview-${{ github.ref }}
+        types: [opened, reopened, synchronize, closed]
 
 jobs:
     deploy-preview:
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v4
-
-            - name: Install and Build
-              if: github.event.action != 'closed'
-              run: |
-                  npm install
-                  npm run build
-
-            - name: Deploy preview
-              uses: PazerOP/pr-preview-action@v1
-              with:
-                  source-dir: ./build/
-                  preview-branch: gh-pages
+        uses: PazerOP/pr-preview-action/.github/workflows/preview.yml@v1
+        with:
+            source-dir: ./build/
+        secrets: inherit
 ```
 
-## Inputs (configuration)
+That's it. Permissions, concurrency, fork safety, and the GitHub Pages environment are all handled internally by the reusable workflow. You don't need to configure any of that.
 
-All parameters are optional and have default values.
+If your site needs a build step, add a separate job:
+
+```yaml
+name: Deploy PR previews
+
+on:
+    pull_request:
+        types: [opened, reopened, synchronize, closed]
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        if: github.event.action != 'closed'
+        steps:
+            - uses: actions/checkout@v4
+            - run: npm install && npm run build
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: build
+                  path: ./build/
+
+    deploy-preview:
+        needs: build
+        if: always()
+        uses: PazerOP/pr-preview-action/.github/workflows/preview.yml@v1
+        with:
+            source-dir: ./build/
+        secrets: inherit
+```
+
+## Inputs
+
+All parameters are optional except `source-dir`.
 
 | Input&nbsp;parameter | Description |
 | --- | --- |
-| `source-dir` | Directory containing files to deploy. E.g. `./dist/` or `./build/`. <br><br> Default: `.` (repository root) |
-| `preview-branch` | Branch to save previews to. This branch stores all preview content and is used as the source of truth for Pages deployment. <br><br> Default: `gh-pages` |
-| `umbrella-dir` | Path to the directory containing all previews. <br><br> Default: `pr-preview` |
-| `pr-number` | The PR number to use for the preview path. <br><br> Default: `${{ github.event.number }}` |
-| `pages-base-url` | Base URL of the GitHub Pages site. <br><br> Default: Calculated from repository name |
-| `pages-base-path` | Path that GitHub Pages is served from. <br><br> Default: `.` |
-| `comment` <br> (boolean) | Whether to leave a sticky comment on the PR. <br><br> Default: `true` |
-| `qr-code` | QR code provider URL, or `"false"` to disable. <br><br> Default: `https://qr.rossjrw.com/?color.dark=0d1117&url=` |
-| `token` | Authentication token. <br><br> Default: `${{ github.token }}` |
-| `action` <br> (enum) | `deploy`, `remove`, or `auto`. <br> `auto` deploys on `opened`/`reopened`/`synchronize` and removes on `closed`. <br><br> Default: `auto` |
-| `commit-status-context` | The context string for commit statuses set on the PR head SHA. <br><br> Default: `"Preview"` |
-
-<details>
-<summary><b>Extra parameters for controlling the commits</b></summary>
-
-| Input&nbsp;parameter | Description |
-| --- | --- |
-| `deploy-commit-message` | Commit message when adding/updating a preview. <br><br> Default: `Deploy preview for PR ${{ github.event.number }}` |
-| `remove-commit-message` | Commit message when removing a preview. <br><br> Default: `Remove preview for PR ${{ github.event.number }}` |
-
-</details>
+| `source-dir` | Directory containing files to deploy. E.g. `./dist/` or `./build/`. **Required.** |
+| `preview-branch` | Branch to save previews to. <br> Default: `gh-pages` |
+| `umbrella-dir` | Path to the directory containing all previews. <br> Default: `pr-preview` |
+| `action` | `deploy`, `remove`, or `auto`. `auto` deploys on `opened`/`reopened`/`synchronize` and removes on `closed`. <br> Default: `auto` |
+| `comment` | Whether to leave a sticky comment on the PR. <br> Default: `"true"` |
+| `qr-code` | QR code provider URL, or `"false"` to disable. <br> Default: `https://qr.rossjrw.com/?color.dark=0d1117&url=` |
+| `commit-status-context` | The context string for commit statuses. <br> Default: `"Preview"` |
+| `pr-number` | The PR number to use for the preview path. <br> Default: from event context |
+| `pages-base-url` | Base URL of the GitHub Pages site. <br> Default: auto-detected |
+| `pages-base-path` | Path that GitHub Pages is served from. <br> Default: `""` |
+| `deploy-commit-message` | Commit message when adding/updating a preview. <br> Default: `Deploy preview for PR {number}` |
+| `remove-commit-message` | Commit message when removing a preview. <br> Default: `Remove preview for PR {number}` |
 
 ## Outputs
 
@@ -116,14 +99,11 @@ All parameters are optional and have default values.
 | `pages-base-url` | Base URL of the GitHub Pages site. |
 | `preview-url-path` | Path to the preview from the base URL. |
 | `preview-url` | Full URL to the preview (includes `?v={short_sha}` cache-busting param). |
-| `action-version` | Version of this Action when it was run. |
-| `action-start-timestamp` | Unix timestamp when the action started. |
-| `action-start-time` | Human-readable start time (UTC). |
 
 ## How it works
 
 1. **Push to branch**: Pushes preview files to a subdirectory on the `gh-pages` branch
-2. **Upload artifact**: Checks out the full `gh-pages` branch and uploads it as a Pages artifact via `actions/upload-pages-artifact`
+2. **Upload artifact**: Checks out the full `gh-pages` branch and uploads it as a Pages artifact
 3. **Deploy**: Deploys the artifact to GitHub Pages via `actions/deploy-pages`
 4. **Comment**: Posts/updates a sticky PR comment with the preview URL
 5. **Status**: Sets commit statuses (pending → success/failure) on the PR head SHA
@@ -136,13 +116,9 @@ The `gh-pages` branch serves as the source of truth for all content (production 
 
 If you use GitHub Actions to deploy your main site (e.g. on push to main), configure it to not delete the preview umbrella directory when pushing to `gh-pages`.
 
-## Set a concurrency group
+## Legacy composite action
 
-Use a [concurrency group](https://docs.github.com/en/actions/using-jobs/using-concurrency) scoped to each PR to prevent race conditions:
-
-```yaml
-concurrency: preview-${{ github.ref }}
-```
+The composite action (`uses: PazerOP/pr-preview-action@v1`) is still available but deprecated. It requires callers to manually configure permissions, concurrency, checkout, and token passing. The reusable workflow handles all of that internally and is the recommended approach.
 
 # Acknowledgements
 

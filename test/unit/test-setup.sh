@@ -6,12 +6,6 @@ source "$(dirname "$0")/../lib/assert.sh"
 
 FIXTURES_DIR="$(dirname "$0")/../fixtures/events"
 
-# Ensure ts-node is available
-if ! pnpm exec ts-node --version &>/dev/null; then
-    echo "ts-node not found, installing dependencies..."
-    pnpm install --frozen-lockfile
-fi
-
 echo >&2 "test setup: pages base URL calculation"
 echo >&2 "==============================="
 
@@ -27,7 +21,7 @@ export INPUT_PAGES_BASE_PATH=""
 export INPUT_PR_NUMBER="42"
 export INPUT_ACTION_REF="v1.0.0"
 
-pnpm exec ts-node src/setup.ts
+node dist/setup.js
 
 env_content=$(cat "$GITHUB_ENV")
 output_content=$(cat "$GITHUB_OUTPUT")
@@ -52,7 +46,7 @@ export GITHUB_OUTPUT=$(mktemp)
 export INPUT_ACTION="auto"
 export GITHUB_EVENT_PATH="$FIXTURES_DIR/pr-closed.json"
 
-pnpm exec ts-node src/setup.ts
+node dist/setup.js
 
 output_content=$(cat "$GITHUB_OUTPUT")
 assert_contains "$output_content" "deployment_action=remove"
@@ -66,7 +60,7 @@ export GITHUB_REPOSITORY="myuser/myuser.github.io"
 export INPUT_ACTION="deploy"
 export GITHUB_EVENT_PATH="$FIXTURES_DIR/pr-opened.json"
 
-pnpm exec ts-node src/setup.ts
+node dist/setup.js
 
 output_content=$(cat "$GITHUB_OUTPUT")
 assert_contains "$output_content" "pages_base_url=myuser.github.io"
@@ -80,7 +74,7 @@ export GITHUB_OUTPUT=$(mktemp)
 export GITHUB_REPOSITORY="test-owner/test-repo"
 export INPUT_PAGES_BASE_URL="custom.example.com/site"
 
-pnpm exec ts-node src/setup.ts
+node dist/setup.js
 
 output_content=$(cat "$GITHUB_OUTPUT")
 assert_contains "$output_content" "pages_base_url=custom.example.com/site"

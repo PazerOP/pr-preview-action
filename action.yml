@@ -98,20 +98,6 @@ outputs:
 runs:
     using: composite
     steps:
-        - name: Install pnpm
-          uses: pnpm/action-setup@v4
-          with:
-              package_json_file: ${{ github.action_path }}/package.json
-
-        - name: Setup Node.js
-          uses: actions/setup-node@v4
-          with:
-              node-version: 22
-
-        - name: Install action dependencies
-          run: cd $GITHUB_ACTION_PATH && pnpm install --frozen-lockfile
-          shell: bash
-
         - name: Setup preview environment
           id: setup
           env:
@@ -121,7 +107,7 @@ runs:
               INPUT_PAGES_BASE_PATH: ${{ inputs.pages-base-path }}
               INPUT_PR_NUMBER: ${{ inputs.pr-number || github.event.number }}
               INPUT_ACTION_REF: ${{ github.action_ref || github.ref }}
-          run: pnpm --dir $GITHUB_ACTION_PATH exec ts-node $GITHUB_ACTION_PATH/src/setup.ts
+          run: node $GITHUB_ACTION_PATH/dist/setup.js
           shell: bash
 
         # DEPLOYMENT
@@ -132,7 +118,7 @@ runs:
               INPUT_TOKEN: ${{ inputs.token }}
               INPUT_SHA: ${{ github.event.pull_request.head.sha }}
               INPUT_CONTEXT: ${{ inputs.commit-status-context }}
-          run: pnpm --dir $GITHUB_ACTION_PATH exec ts-node $GITHUB_ACTION_PATH/src/status.ts pending "Deploying preview..." "${{ env.preview_url }}"
+          run: node $GITHUB_ACTION_PATH/dist/status.js pending "Deploying preview..." "${{ env.preview_url }}"
           shell: bash
 
         - name: Deploy preview to branch
@@ -143,7 +129,7 @@ runs:
               INPUT_SOURCE_DIR: ${{ inputs.source-dir }}
               INPUT_TARGET_PATH: ${{ env.preview_file_path }}
               INPUT_COMMIT_MESSAGE: ${{ inputs.deploy-commit-message }}
-          run: pnpm --dir $GITHUB_ACTION_PATH exec ts-node $GITHUB_ACTION_PATH/src/git-update.ts deploy
+          run: node $GITHUB_ACTION_PATH/dist/git-update.js deploy
           shell: bash
 
         - name: Upload Pages artifact
@@ -165,7 +151,7 @@ runs:
               INPUT_TOKEN: ${{ inputs.token }}
               INPUT_SHA: ${{ github.event.pull_request.head.sha }}
               INPUT_CONTEXT: ${{ inputs.commit-status-context }}
-          run: pnpm --dir $GITHUB_ACTION_PATH exec ts-node $GITHUB_ACTION_PATH/src/status.ts success "Preview is live!" "${{ env.preview_url }}"
+          run: node $GITHUB_ACTION_PATH/dist/status.js success "Preview is live!" "${{ env.preview_url }}"
           shell: bash
 
         - name: Post deploy comment
@@ -179,7 +165,7 @@ runs:
               INPUT_PREVIEW_BRANCH: ${{ inputs.preview-branch }}
               INPUT_QR_CODE: ${{ inputs.qr-code }}
               INPUT_COMMENT: ${{ inputs.comment }}
-          run: pnpm --dir $GITHUB_ACTION_PATH exec ts-node $GITHUB_ACTION_PATH/src/comment.ts
+          run: node $GITHUB_ACTION_PATH/dist/comment.js
           shell: bash
 
         - name: Set failure commit status
@@ -190,7 +176,7 @@ runs:
               INPUT_TOKEN: ${{ inputs.token }}
               INPUT_SHA: ${{ github.event.pull_request.head.sha }}
               INPUT_CONTEXT: ${{ inputs.commit-status-context }}
-          run: pnpm --dir $GITHUB_ACTION_PATH exec ts-node $GITHUB_ACTION_PATH/src/status.ts failure "Preview deployment failed" "${{ env.preview_url }}"
+          run: node $GITHUB_ACTION_PATH/dist/status.js failure "Preview deployment failed" "${{ env.preview_url }}"
           shell: bash
 
         # REMOVAL
@@ -202,7 +188,7 @@ runs:
               INPUT_TOKEN: ${{ inputs.token }}
               INPUT_TARGET_PATH: ${{ env.preview_file_path }}
               INPUT_COMMIT_MESSAGE: ${{ inputs.remove-commit-message }}
-          run: pnpm --dir $GITHUB_ACTION_PATH exec ts-node $GITHUB_ACTION_PATH/src/git-update.ts remove
+          run: node $GITHUB_ACTION_PATH/dist/git-update.js remove
           shell: bash
 
         - name: Upload Pages artifact for removal
@@ -226,5 +212,5 @@ runs:
               INPUT_PREVIEW_BRANCH: ${{ inputs.preview-branch }}
               INPUT_QR_CODE: ${{ inputs.qr-code }}
               INPUT_COMMENT: ${{ inputs.comment }}
-          run: pnpm --dir $GITHUB_ACTION_PATH exec ts-node $GITHUB_ACTION_PATH/src/comment.ts
+          run: node $GITHUB_ACTION_PATH/dist/comment.js
           shell: bash
