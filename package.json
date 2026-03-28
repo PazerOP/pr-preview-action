@@ -7,9 +7,6 @@
   "dependencies": {
     "qrcode": "^1.5.4"
   },
-  "scripts": {
-    "build": "tsc"
-  },
   "devDependencies": {
     "@types/node": "^22.15.0",
     "@types/qrcode": "^1.5.6",

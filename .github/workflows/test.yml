@@ -42,9 +42,9 @@ jobs:
 
             - name: Verify dist/ is up to date
               run: |
-                  pnpm run build
+                  pnpm exec tsc
                   if ! git diff --exit-code dist/; then
-                      echo "::error::dist/ is out of date. Run 'pnpm run build' and commit the result."
+                      echo "::error::dist/ is out of date. Run 'pnpm exec tsc' and commit the result."
                       exit 1
                   fi
 

@@ -30,7 +30,8 @@ assert_file_contains "$comment_file" "$action_version"
 assert_file_contains "$comment_file" "$preview_url"
 assert_file_contains "$comment_file" "pr-preview"
 # QR code should be a data URI, not an external URL
-assert_file_contains "$comment_file" "data:image/gif;base64,"
+# QR code should be a data URI (GIF if ImageMagick available, PNG otherwise)
+assert_file_contains "$comment_file" "data:image/"
 
 echo >&2 "test comment: removal"
 echo >&2 "==============================="
@@ -52,5 +53,5 @@ cat >&2 "$comment_file"
 echo >&2 "==============================="
 
 # Should NOT contain a QR code
-assert_file_contains "$comment_file" "data:image/gif;base64," && exit 1 || true
+assert_file_contains "$comment_file" "data:image/" && exit 1 || true
 assert_file_contains "$comment_file" "$preview_url"
