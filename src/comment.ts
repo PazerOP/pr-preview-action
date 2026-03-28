@@ -8,7 +8,6 @@ function env(name: string): string {
 
 function generateDeployComment(): string {
   const actionVersion = env("action_version");
-  const previewUrlCached = env("preview_url_cached");
   const previewUrl = env("preview_url");
   const previewBranch = env("INPUT_PREVIEW_BRANCH") || "gh-pages";
   const serverUrl = env("GITHUB_SERVER_URL") || "https://github.com";
@@ -24,7 +23,7 @@ function generateDeployComment(): string {
     provider = "";
   }
 
-  const displayUrl = previewUrlCached || previewUrl;
+  const displayUrl = previewUrl;
 
   if (provider) {
     qrCode = `<img src="${provider}${displayUrl}" height="100" align="right" alt="QR code for preview link">`;

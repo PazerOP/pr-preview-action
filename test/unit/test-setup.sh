@@ -42,7 +42,7 @@ assert_contains "$output_content" "pages_base_url=test-owner.github.io/test-repo
 assert_contains "$output_content" "preview_url_path=pr-preview/pr-42"
 assert_contains "$output_content" "preview_url=https://test-owner.github.io/test-repo/pr-preview/pr-42/"
 assert_contains "$output_content" "short_sha=abc1234"
-assert_contains "$output_content" "preview_url_cached=https://test-owner.github.io/test-repo/pr-preview/pr-42/?v=abc1234"
+assert_contains "$output_content" "preview_url=https://test-owner.github.io/test-repo/pr-preview/pr-42/?v=abc1234"
 assert_contains "$output_content" "action_version=v1.0.0"
 assert_contains "$env_content" "empty_dir_path="
 

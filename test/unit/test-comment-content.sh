@@ -15,8 +15,7 @@ export GITHUB_REPOSITORY="test-owner/test-repo"
 export GITHUB_SERVER_URL="https://github.com"
 export GITHUB_API_URL="https://api.github.com"
 export action_version="v1.0.0-test"
-export preview_url="https://test-owner.github.io/test-repo/pr-preview/pr-12345/"
-export preview_url_cached="https://test-owner.github.io/test-repo/pr-preview/pr-12345/?v=abc1234"
+export preview_url="https://test-owner.github.io/test-repo/pr-preview/pr-12345/?v=abc1234"
 export action_start_time="2025-01-01 12:00 UTC"
 export INPUT_PREVIEW_BRANCH="gh-pages"
 export INPUT_COMMENT="true"
@@ -34,7 +33,7 @@ echo >&2 "==============================="
 
 assert_file_contains "$comment_file" "PR Preview Action"
 assert_file_contains "$comment_file" "$action_version"
-assert_file_contains "$comment_file" "$preview_url_cached"
+assert_file_contains "$comment_file" "$preview_url"
 assert_file_contains "$comment_file" "pr-preview"
 # No QR code when provider is empty
 assert_file_contains "$comment_file" "/?url=" && exit 1 || true
@@ -60,7 +59,7 @@ export INPUT_QR_CODE=""
 cat >&2 "$comment_file"
 echo >&2 "==============================="
 
-assert_file_contains "$comment_file" "qr.example.com/?url=$preview_url_cached"
+assert_file_contains "$comment_file" "qr.example.com/?url=$preview_url"
 
 echo >&2 "test comment: deployment with QR code, backwards compatibility with qr-code:true"
 echo >&2 "==============================="

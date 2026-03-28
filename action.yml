@@ -91,9 +91,6 @@ outputs:
     preview-url:
         description: Full URL to the preview.
         value: ${{ steps.setup.outputs.preview_url }}
-    preview-url-cached:
-        description: Full URL to the preview with cache-busting query param.
-        value: ${{ steps.setup.outputs.preview_url_cached }}
     action-version:
         description: The version of this Action when it was run.
         value: ${{ steps.setup.outputs.action_version }}
@@ -179,7 +176,7 @@ runs:
               INPUT_TOKEN: ${{ inputs.token }}
               INPUT_SHA: ${{ github.event.pull_request.head.sha }}
               INPUT_CONTEXT: ${{ inputs.commit-status-context }}
-          run: pnpm --dir $GITHUB_ACTION_PATH exec ts-node $GITHUB_ACTION_PATH/src/status.ts success "Preview is live!" "${{ env.preview_url_cached }}"
+          run: pnpm --dir $GITHUB_ACTION_PATH exec ts-node $GITHUB_ACTION_PATH/src/status.ts success "Preview is live!" "${{ env.preview_url }}"
           shell: bash
 
         - name: Post deploy comment

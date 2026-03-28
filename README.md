@@ -117,8 +117,7 @@ All parameters are optional and have default values.
 | `deployment-action` | Resolved value of the `action` input (deploy, remove, none). |
 | `pages-base-url` | Base URL of the GitHub Pages site. |
 | `preview-url-path` | Path to the preview from the base URL. |
-| `preview-url` | Full URL to the preview. |
-| `preview-url-cached` | Full URL with cache-busting query param (`?v={short_sha}`). |
+| `preview-url` | Full URL to the preview (includes `?v={short_sha}` cache-busting param). |
 | `action-version` | Version of this Action when it was run. |
 | `action-start-timestamp` | Unix timestamp when the action started. |
 | `action-start-time` | Human-readable start time (UTC). |

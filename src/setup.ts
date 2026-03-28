@@ -105,7 +105,7 @@ if (deploymentAction === "auto") {
   console.error(`Auto action is ${deploymentAction}`);
 }
 
-const previewUrl = `https://${pagesBaseUrl}/${previewUrlPath}/`;
+const basePreviewUrl = `https://${pagesBaseUrl}/${previewUrlPath}/`;
 
 // Get short SHA for cache busting
 let shortSha = "";
@@ -117,9 +117,9 @@ try {
   // non-PR event, no SHA available
 }
 
-const previewUrlCached = shortSha
-  ? `${previewUrl}?v=${shortSha}`
-  : previewUrl;
+const previewUrl = shortSha
+  ? `${basePreviewUrl}?v=${shortSha}`
+  : basePreviewUrl;
 
 const actionStartTimestamp = Math.floor(Date.now() / 1000).toString();
 const actionStartTime = new Date()
@@ -134,7 +134,6 @@ const sharedVars: Record<string, string> = {
   pages_base_url: pagesBaseUrl,
   preview_url_path: previewUrlPath,
   preview_url: previewUrl,
-  preview_url_cached: previewUrlCached,
   short_sha: shortSha,
   action_version: actionRef,
   action_start_time: actionStartTime,
@@ -148,4 +147,3 @@ appendToFile(envFile, `empty_dir_path=${fs.mkdtempSync("/tmp/pr-preview-empty-")
 
 console.log(`Action: ${deploymentAction}`);
 console.log(`Preview URL: ${previewUrl}`);
-console.log(`Cached URL: ${previewUrlCached}`);
