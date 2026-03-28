@@ -1,5 +1,5 @@
 name: Deploy PR Preview
-author: Ross Williams
+author: Ross Williams (PazerOP fork)
 description: >
     Deploy a pull request preview to GitHub Pages, similar to Vercel and Netlify.
     Uses GitHub Actions artifact-based deployment (Pages source: "GitHub Actions").
