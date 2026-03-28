@@ -6,7 +6,16 @@ on:
             - reopened
             - synchronize
             - closed
+
+permissions:
+    contents: write
+    pull-requests: write
+    pages: write
+    id-token: write
+    statuses: write
+
 concurrency: preview-${{ github.ref }}
+
 jobs:
     deploy-preview:
         runs-on: ubuntu-latest

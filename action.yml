@@ -2,6 +2,7 @@ name: Deploy PR Preview
 author: Ross Williams
 description: >
     Deploy a pull request preview to GitHub Pages, similar to Vercel and Netlify.
+    Uses GitHub Actions artifact-based deployment (Pages source: "GitHub Actions").
 
 
 branding:
@@ -11,7 +12,7 @@ branding:
 inputs:
     token:
         description: >
-            The token to use for the deployment. Default is GITHUB_TOKEN in the current repository. If you need more permissions for things such as deploying to another repository, you can add a Personal Access Token (PAT).
+            The token to use for the deployment. Default is GITHUB_TOKEN in the current repository.
 
 
         required: false
@@ -38,33 +39,17 @@ inputs:
         default: .
     pr-number:
         description: >
-            The PR number to use for the preview path. Defaults to the PR number from the GitHub event context. Override this for testing or when not triggered by a pull_request event.
+            The PR number to use for the preview path. Defaults to the PR number from the GitHub event context.
 
 
         required: false
         default: ""
-    deploy-repository:
-        description: >
-            The GitHub repository to deploy the preview to. This should be formatted like `<org name>/<repo name>`, e.g. `rossjrw/pr-preview-action`. Defaults to the current repository.
-            
-            You will need to add a Personal Access Token (PAT) in the `token` input in order to allow the action running in one repository to make changes to another repository.
-
-
-        required: false
-        default: ${{ github.repository }}
-    wait-for-pages-deployment:
-        description: >
-            Whether to wait for GitHub Pages deployment before continuing, e.g. to ensure the preview URL is actually accessible when the sticky comment is posted.
-
-
-        required: false
-        default: "false"
     comment:
-        description: Whether to leave a sticky comment on the calling PR at the end of the workflow.
+        description: Whether to leave a sticky comment on the calling PR.
         required: false
         default: "true"
     qr-code:
-        description: URL to a QR code provider to generate a QR code for the preview URL in the comment. Preview URL will be appended to the string. Or, set to "false" to disable QR code generation.
+        description: URL to a QR code provider, or "false" to disable.
         required: false
         default: "https://qr.rossjrw.com/?color.dark=0d1117&url="
     deploy-commit-message:
@@ -81,25 +66,21 @@ inputs:
     git-config-email:
         description: The git user.email to use for the deployment commit.
         required: false
-
-    custom-url:
-        description: Deprecated, use `pages-base-url` instead.
-        deprecationMessage: Use `pages-base-url` instead.
-        required: false
-        default: ""
     action:
         description: >
             Determines what this action will do when it is executed. Supported values: `deploy`, `remove`, `auto` (default).
-            
-            If set to `deploy`, will attempt to deploy the preview and overwrite any existing preview in that location.
-            
-            If set to `remove`, will attempt to remove the preview in that location.
-            
-            If set to `auto`, the action will try to determine whether to deploy or remove the preview. It will deploy the preview on `pull_request.types.synchronize` and `.opened` events, and remove it on `pull_request.types.closed` events. It will not do anything for all other events. `auto` is the default value.
 
 
         required: false
         default: auto
+    commit-status:
+        description: Whether to set commit statuses on the PR head SHA to indicate deployment progress.
+        required: false
+        default: "true"
+    commit-status-context:
+        description: The context string for commit statuses (e.g., shown as the status check name).
+        required: false
+        default: "Preview"
 
 outputs:
     deployment-action:
@@ -112,8 +93,11 @@ outputs:
         description: Path to the preview from the Pages base URL.
         value: ${{ steps.setup.outputs.preview_url_path }}
     preview-url:
-        description: Full URL to the preview (https://[pages-base-url]/[preview-url-path]/).
+        description: Full URL to the preview.
         value: ${{ steps.setup.outputs.preview_url }}
+    preview-url-cached:
+        description: Full URL to the preview with cache-busting query param.
+        value: ${{ steps.setup.outputs.preview_url_cached }}
     action-version:
         description: The version of this Action when it was run.
         value: ${{ steps.setup.outputs.action_version }}
@@ -121,43 +105,46 @@ outputs:
         description: The Unix timestamp that the action started.
         value: ${{ steps.setup.outputs.action_start_timestamp }}
     action-start-time:
-        description: The time that the action started in a readable format (UTC, depending on runner).
+        description: The time that the action started in a readable format (UTC).
         value: ${{ steps.setup.outputs.action_start_time }}
-    deployed-commit-sha:
-        description: The commit SHA that was deployed to the preview branch.
-        value: ${{ steps.deployed-commit.outputs.deployed_commit_sha }}
-
-    deployment-url:
-        description: Deprecated, use `preview-url` instead.
-        value: ${{ steps.setup.outputs.preview_url }}
 
 runs:
     using: composite
     steps:
+        - name: Install action dependencies
+          run: cd $GITHUB_ACTION_PATH && pnpm install --frozen-lockfile
+          shell: bash
+
         - name: Setup preview environment
           id: setup
           env:
-              deployment_action: ${{ inputs.action }}
-              umbrella_path: ${{ inputs.umbrella-dir }}
-              pages_base_url: ${{ inputs.pages-base-url }}
-              pages_base_path: ${{ inputs.pages-base-path }}
-              pr_number: ${{ inputs.pr-number || github.event.number }}
-              action_repository: ${{ github.action_repository || github.repository }}
-              action_ref: ${{ github.action_ref || github.ref }}
-              deployment_repository: ${{ inputs.deploy-repository }}
-              token: ${{ inputs.token }}
-              deprecated_custom_url: ${{ inputs.custom-url }}
-          run: $GITHUB_ACTION_PATH/lib/main.sh
+              INPUT_ACTION: ${{ inputs.action }}
+              INPUT_UMBRELLA_DIR: ${{ inputs.umbrella-dir }}
+              INPUT_PAGES_BASE_URL: ${{ inputs.pages-base-url }}
+              INPUT_PAGES_BASE_PATH: ${{ inputs.pages-base-path }}
+              INPUT_PR_NUMBER: ${{ inputs.pr-number || github.event.number }}
+              INPUT_ACTION_REF: ${{ github.action_ref || github.ref }}
+          run: pnpm --dir $GITHUB_ACTION_PATH exec ts-node $GITHUB_ACTION_PATH/src/setup.ts
           shell: bash
 
         # DEPLOYMENT
+
+        - name: Set pending commit status
+          if: |
+              env.deployment_action == 'deploy' &&
+              (inputs.commit-status == 'true' || inputs.commit-status == true)
+          env:
+              INPUT_TOKEN: ${{ inputs.token }}
+              INPUT_SHA: ${{ github.event.pull_request.head.sha }}
+              INPUT_CONTEXT: ${{ inputs.commit-status-context }}
+          run: pnpm --dir $GITHUB_ACTION_PATH exec ts-node $GITHUB_ACTION_PATH/src/status.ts pending "Deploying preview..." "${{ env.preview_url }}"
+          shell: bash
 
         - name: Deploy preview directory
           if: env.deployment_action == 'deploy'
           uses: JamesIves/github-pages-deploy-action@4a3abc783e1a24aeb44c16e869ad83caf6b4cc23 # v4.7.4
           with:
               token: ${{ inputs.token }}
-              repository-name: ${{ inputs.deploy-repository }}
               branch: ${{ inputs.preview-branch }}
               folder: ${{ inputs.source-dir }}
               target-folder: ${{ env.preview_file_path }}
@@ -166,60 +153,67 @@ runs:
               git-config-name: ${{ inputs.git-config-name }}
               git-config-email: ${{ inputs.git-config-email }}
 
-        - name: Get commit SHA of preview deployment
-          id: deployed-commit
+        - name: Checkout preview branch
           if: env.deployment_action == 'deploy'
-          env:
-              DEPLOY_REPO: ${{ inputs.deploy-repository }}
-              DEPLOY_BRANCH: ${{ inputs.preview-branch }}
-              DEPLOY_TOKEN: ${{ inputs.token }}
-          run: $GITHUB_ACTION_PATH/lib/get-deployed-commit.sh
-          shell: bash
-
-        - name: Wait for preview deployment on GitHub Pages
-          if: |
-              env.deployment_action == 'deploy' &&
-              (inputs.wait-for-pages-deployment == 'true' || inputs.wait-for-pages-deployment == true) &&
-              env.deployment_status == 'success'
-          run: |
-              source $GITHUB_ACTION_PATH/lib/wait-for-pages-deployment.sh
-              wait_for_pages_deployment "${{ inputs.deploy-repository }}" "${{ steps.deployed-commit.outputs.deployed_commit_sha }}" "${{ inputs.preview-branch }}" "${{ inputs.token }}"
-          shell: bash
-
-        - name: Generate comment content for deployment
-          id: deploy-comment
-          if: |
-              env.deployment_action == 'deploy' &&
-              (inputs.comment == 'true' || inputs.comment == true) &&
-              (env.deployment_status == 'success' || env.deployment_status == 'skipped')
-          run: |
-              CONTENT=$($GITHUB_ACTION_PATH/lib/generate-comment.sh \
-                "${{ env.action_repository }}" \
-                "${{ env.action_version }}" \
-                "${{ env.preview_url }}" \
-                "${{ inputs.preview-branch }}" \
-                "${{ github.server_url }}" \
-                "${{ inputs.deploy-repository }}" \
-                "${{ env.action_start_time }}" \
-                "deploy" \
-                "${{ inputs.qr-code }}")
-              {
-                echo "content<<EOF"
-                echo "$CONTENT"
-                echo "EOF"
-              } >> $GITHUB_OUTPUT
-          shell: bash
-
-        - name: Leave a comment after deployment
-          if: |
-              env.deployment_action == 'deploy' &&
-              (inputs.comment == 'true' || inputs.comment == true) &&
-              (env.deployment_status == 'success' || env.deployment_status == 'skipped') &&
-              steps.deploy-comment.outcome == 'success'
-          uses: marocchino/sticky-pull-request-comment@67d0dec7b07ed060a405f9b2a64b8ab319fdd7db # v2.9.2
+          uses: actions/checkout@v4
           with:
-              header: pr-preview
-              message: ${{ steps.deploy-comment.outputs.content }}
+              ref: ${{ inputs.preview-branch }}
+              path: __gh-pages-content
+              token: ${{ inputs.token }}
+
+        - name: Clean checkout for artifact
+          if: env.deployment_action == 'deploy'
+          run: rm -rf __gh-pages-content/.git
+          shell: bash
+
+        - name: Upload Pages artifact
+          if: env.deployment_action == 'deploy'
+          uses: actions/upload-pages-artifact@v4
+          with:
+              path: __gh-pages-content
+
+        - name: Deploy to GitHub Pages
+          id: pages-deploy
+          if: env.deployment_action == 'deploy'
+          uses: actions/deploy-pages@v4
+
+        - name: Set success commit status
+          if: |
+              env.deployment_action == 'deploy' &&
+              (inputs.commit-status == 'true' || inputs.commit-status == true) &&
+              steps.pages-deploy.outcome == 'success'
+          env:
+              INPUT_TOKEN: ${{ inputs.token }}
+              INPUT_SHA: ${{ github.event.pull_request.head.sha }}
+              INPUT_CONTEXT: ${{ inputs.commit-status-context }}
+          run: pnpm --dir $GITHUB_ACTION_PATH exec ts-node $GITHUB_ACTION_PATH/src/status.ts success "Preview is live!" "${{ env.preview_url_cached }}"
+          shell: bash
+
+        - name: Post deploy comment
+          if: |
+              env.deployment_action == 'deploy' &&
+              (inputs.comment == 'true' || inputs.comment == true) &&
+              steps.pages-deploy.outcome == 'success'
+          env:
+              INPUT_TOKEN: ${{ inputs.token }}
+              INPUT_PR_NUMBER: ${{ inputs.pr-number || github.event.number }}
+              INPUT_PREVIEW_BRANCH: ${{ inputs.preview-branch }}
+              INPUT_QR_CODE: ${{ inputs.qr-code }}
+              INPUT_COMMENT: ${{ inputs.comment }}
+          run: pnpm --dir $GITHUB_ACTION_PATH exec ts-node $GITHUB_ACTION_PATH/src/comment.ts
+          shell: bash
+
+        - name: Set failure commit status
+          if: |
+              failure() &&
+              env.deployment_action == 'deploy' &&
+              (inputs.commit-status == 'true' || inputs.commit-status == true)
+          env:
+              INPUT_TOKEN: ${{ inputs.token }}
+              INPUT_SHA: ${{ github.event.pull_request.head.sha }}
+              INPUT_CONTEXT: ${{ inputs.commit-status-context }}
+          run: pnpm --dir $GITHUB_ACTION_PATH exec ts-node $GITHUB_ACTION_PATH/src/status.ts failure "Preview deployment failed" "${{ env.preview_url }}"
+          shell: bash
 
         # REMOVAL
 
@@ -228,7 +222,6 @@ runs:
           uses: JamesIves/github-pages-deploy-action@4a3abc783e1a24aeb44c16e869ad83caf6b4cc23 # v4.7.4
           with:
               token: ${{ inputs.token }}
-              repository-name: ${{ inputs.deploy-repository }}
               branch: ${{ inputs.preview-branch }}
               folder: ${{ env.empty_dir_path }}
               target-folder: ${{ env.preview_file_path }}
@@ -237,57 +230,39 @@ runs:
               git-config-name: ${{ inputs.git-config-name }}
               git-config-email: ${{ inputs.git-config-email }}
 
-        - name: Get commit SHA of preview removal
-          id: removed-commit
+        - name: Checkout preview branch for removal
           if: env.deployment_action == 'remove'
-          env:
-              DEPLOY_REPO: ${{ inputs.deploy-repository }}
-              DEPLOY_BRANCH: ${{ inputs.preview-branch }}
-              DEPLOY_TOKEN: ${{ inputs.token }}
-          run: $GITHUB_ACTION_PATH/lib/get-deployed-commit.sh
-          shell: bash
-
-        - name: Wait for preview removal on GitHub Pages
-          if: |
-              env.deployment_action == 'remove' &&
-              (inputs.wait-for-pages-deployment == 'true' || inputs.wait-for-pages-deployment == true) &&
-              env.deployment_status == 'success'
-          run: |
-              source $GITHUB_ACTION_PATH/lib/wait-for-pages-deployment.sh
-              wait_for_pages_deployment "${{ inputs.deploy-repository }}" "${{ steps.removed-commit.outputs.deployed_commit_sha }}" "${{ inputs.preview-branch }}" "${{ inputs.token }}"
-          shell: bash
-
-        - name: Generate comment content for removal
-          id: remove-comment
-          if: |
-              env.deployment_action == 'remove' &&
-              (inputs.comment == 'true' || inputs.comment == true) &&
-              (env.deployment_status == 'success' || env.deployment_status == 'skipped')
-          run: |
-              CONTENT=$($GITHUB_ACTION_PATH/lib/generate-comment.sh \
-                "${{ env.action_repository }}" \
-                "${{ env.action_version }}" \
-                "${{ env.preview_url }}" \
-                "${{ inputs.preview-branch }}" \
-                "${{ github.server_url }}" \
-                "${{ inputs.deploy-repository }}" \
-                "${{ env.action_start_time }}" \
-                "remove" \
-                "${{ env.qr_code_provider }}")
-              {
-                echo "content<<EOF"
-                echo "$CONTENT"
-                echo "EOF"
-              } >> $GITHUB_OUTPUT
-          shell: bash
-
-        - name: Leave a comment after removal
-          if: |
-              env.deployment_action == 'remove' &&
-              (inputs.comment == 'true' || inputs.comment == true) &&
-              (env.deployment_status == 'success' || env.deployment_status == 'skipped') &&
-              steps.remove-comment.outcome == 'success'
-          uses: marocchino/sticky-pull-request-comment@67d0dec7b07ed060a405f9b2a64b8ab319fdd7db # v2.9.2
+          uses: actions/checkout@v4
           with:
-              header: pr-preview
-              message: ${{ steps.remove-comment.outputs.content }}
+              ref: ${{ inputs.preview-branch }}
+              path: __gh-pages-content
+              token: ${{ inputs.token }}
+
+        - name: Clean checkout for removal artifact
+          if: env.deployment_action == 'remove'
+          run: rm -rf __gh-pages-content/.git
+          shell: bash
+
+        - name: Upload Pages artifact for removal
+          if: env.deployment_action == 'remove'
+          uses: actions/upload-pages-artifact@v4
+          with:
+              path: __gh-pages-content
+
+        - name: Deploy removal to GitHub Pages
+          id: pages-deploy-remove
+          if: env.deployment_action == 'remove'
+          uses: actions/deploy-pages@v4
+
+        - name: Post remove comment
+          if: |
+              env.deployment_action == 'remove' &&
+              (inputs.comment == 'true' || inputs.comment == true)
+          env:
+              INPUT_TOKEN: ${{ inputs.token }}
+              INPUT_PR_NUMBER: ${{ inputs.pr-number || github.event.number }}
+              INPUT_PREVIEW_BRANCH: ${{ inputs.preview-branch }}
+              INPUT_QR_CODE: ${{ inputs.qr-code }}
+              INPUT_COMMENT: ${{ inputs.comment }}
+          run: pnpm --dir $GITHUB_ACTION_PATH exec ts-node $GITHUB_ACTION_PATH/src/comment.ts
+          shell: bash
