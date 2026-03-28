@@ -4,6 +4,8 @@ set -e
 
 source "$(dirname "$0")/../lib/assert.sh"
 
+FIXTURES_DIR="$(dirname "$0")/../fixtures/events"
+
 # Ensure ts-node is available
 if ! pnpm exec ts-node --version &>/dev/null; then
     echo "ts-node not found, installing dependencies..."
@@ -13,10 +15,10 @@ fi
 echo >&2 "test setup: pages base URL calculation"
 echo >&2 "==============================="
 
-# Create temp files for GITHUB_ENV and GITHUB_OUTPUT
 export GITHUB_ENV=$(mktemp)
 export GITHUB_OUTPUT=$(mktemp)
 export GITHUB_EVENT_NAME="pull_request"
+export GITHUB_EVENT_PATH="$FIXTURES_DIR/pr-opened.json"
 export GITHUB_REPOSITORY="test-owner/test-repo"
 export INPUT_ACTION="deploy"
 export INPUT_UMBRELLA_DIR="pr-preview"
@@ -25,23 +27,8 @@ export INPUT_PAGES_BASE_PATH=""
 export INPUT_PR_NUMBER="42"
 export INPUT_ACTION_REF="v1.0.0"
 
-# Create a mock event file
-event_file=$(mktemp)
-cat > "$event_file" << 'EVENTEOF'
-{
-  "action": "opened",
-  "pull_request": {
-    "head": {
-      "sha": "abc1234567890def"
-    }
-  }
-}
-EVENTEOF
-export GITHUB_EVENT_PATH="$event_file"
-
 pnpm exec ts-node src/setup.ts
 
-# Read outputs
 env_content=$(cat "$GITHUB_ENV")
 output_content=$(cat "$GITHUB_OUTPUT")
 
@@ -65,16 +52,7 @@ echo >&2 "==============================="
 export GITHUB_ENV=$(mktemp)
 export GITHUB_OUTPUT=$(mktemp)
 export INPUT_ACTION="auto"
-cat > "$event_file" << 'EVENTEOF'
-{
-  "action": "closed",
-  "pull_request": {
-    "head": {
-      "sha": "def4567890abc123"
-    }
-  }
-}
-EVENTEOF
+export GITHUB_EVENT_PATH="$FIXTURES_DIR/pr-closed.json"
 
 pnpm exec ts-node src/setup.ts
 
@@ -88,16 +66,7 @@ export GITHUB_ENV=$(mktemp)
 export GITHUB_OUTPUT=$(mktemp)
 export GITHUB_REPOSITORY="myuser/myuser.github.io"
 export INPUT_ACTION="deploy"
-cat > "$event_file" << 'EVENTEOF'
-{
-  "action": "opened",
-  "pull_request": {
-    "head": {
-      "sha": "abc1234567890def"
-    }
-  }
-}
-EVENTEOF
+export GITHUB_EVENT_PATH="$FIXTURES_DIR/pr-opened.json"
 
 pnpm exec ts-node src/setup.ts
 
@@ -118,6 +87,3 @@ pnpm exec ts-node src/setup.ts
 output_content=$(cat "$GITHUB_OUTPUT")
 assert_contains "$output_content" "pages_base_url=custom.example.com/site"
 assert_contains "$output_content" "preview_url=https://custom.example.com/site/pr-preview/pr-42/"
-
-# Cleanup
-rm -f "$event_file"
