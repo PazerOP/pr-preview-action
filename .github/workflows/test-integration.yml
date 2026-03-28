@@ -49,8 +49,7 @@ jobs:
                   action: deploy
                   comment: false
 
-                  git-config-name: GitHub Actions
-                  git-config-email: actions@github.com
+
                   deploy-commit-message: deploy ${{ env.TEST_ID }} ${{ github.run_id }}
                   remove-commit-message: remove ${{ env.TEST_ID }} ${{ github.run_id }}
 
@@ -76,8 +75,7 @@ jobs:
                   action: deploy
                   comment: false
 
-                  git-config-name: GitHub Actions
-                  git-config-email: actions@github.com
+
                   deploy-commit-message: deploy ${{ env.TEST_ID }} ${{ github.run_id }}
                   remove-commit-message: remove ${{ env.TEST_ID }} ${{ github.run_id }}
 
@@ -99,8 +97,7 @@ jobs:
                   action: remove
                   comment: false
 
-                  git-config-name: GitHub Actions
-                  git-config-email: actions@github.com
+
                   deploy-commit-message: deploy ${{ env.TEST_ID }} ${{ github.run_id }}
                   remove-commit-message: remove ${{ env.TEST_ID }} ${{ github.run_id }}
 
@@ -151,8 +148,7 @@ jobs:
                   action: deploy
                   comment: false
 
-                  git-config-name: GitHub Actions
-                  git-config-email: actions@github.com
+
                   deploy-commit-message: deploy ${{ env.TEST_ID }} ${{ github.run_id }}
                   remove-commit-message: remove ${{ env.TEST_ID }} ${{ github.run_id }}
 
@@ -202,8 +198,7 @@ jobs:
                   action: deploy
                   comment: false
 
-                  git-config-name: GitHub Actions
-                  git-config-email: actions@github.com
+
                   deploy-commit-message: deploy ${{ env.TEST_ID }} ${{ github.run_id }}
                   remove-commit-message: remove ${{ env.TEST_ID }} ${{ github.run_id }}
 
@@ -221,8 +216,7 @@ jobs:
                   action: deploy
                   comment: false
 
-                  git-config-name: GitHub Actions
-                  git-config-email: actions@github.com
+
                   deploy-commit-message: deploy ${{ env.TEST_ID }} ${{ github.run_id }}
                   remove-commit-message: remove ${{ env.TEST_ID }} ${{ github.run_id }}
 
@@ -240,8 +234,7 @@ jobs:
                   action: deploy
                   comment: false
 
-                  git-config-name: GitHub Actions
-                  git-config-email: actions@github.com
+
                   deploy-commit-message: deploy ${{ env.TEST_ID }} ${{ github.run_id }}
                   remove-commit-message: remove ${{ env.TEST_ID }} ${{ github.run_id }}
 
@@ -293,8 +286,7 @@ jobs:
                   action: deploy
                   comment: false
 
-                  git-config-name: GitHub Actions
-                  git-config-email: actions@github.com
+
                   deploy-commit-message: deploy ${{ env.TEST_ID }} ${{ github.run_id }}
                   remove-commit-message: remove ${{ env.TEST_ID }} ${{ github.run_id }}
 
@@ -316,8 +308,7 @@ jobs:
                   action: remove
                   comment: false
 
-                  git-config-name: GitHub Actions
-                  git-config-email: actions@github.com
+
                   deploy-commit-message: deploy ${{ env.TEST_ID }} ${{ github.run_id }}
                   remove-commit-message: remove ${{ env.TEST_ID }} ${{ github.run_id }}
 

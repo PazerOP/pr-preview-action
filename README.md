@@ -105,8 +105,6 @@ All parameters are optional and have default values.
 | --- | --- |
 | `deploy-commit-message` | Commit message when adding/updating a preview. <br><br> Default: `Deploy preview for PR ${{ github.event.number }}` |
 | `remove-commit-message` | Commit message when removing a preview. <br><br> Default: `Remove preview for PR ${{ github.event.number }}` |
-| `git-config-name` | The git user.name for deployment commits. <br><br> Default: The token user |
-| `git-config-email` | The git user.email for deployment commits. <br><br> Default: The token user |
 
 </details>
 

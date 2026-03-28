@@ -60,12 +60,6 @@ inputs:
         description: The commit message to use when removing a preview.
         required: false
         default: Remove preview for PR ${{ github.event.number }} 🛬
-    git-config-name:
-        description: The git user.name to use for the deployment commit.
-        required: false
-    git-config-email:
-        description: The git user.email to use for the deployment commit.
-        required: false
     action:
         description: >
             Determines what this action will do when it is executed. Supported values: `deploy`, `remove`, `auto` (default).
@@ -141,8 +135,8 @@ runs:
               target-folder: ${{ env.preview_file_path }}
               commit-message: ${{ inputs.deploy-commit-message }}
               force: false
-              git-config-name: ${{ inputs.git-config-name }}
-              git-config-email: ${{ inputs.git-config-email }}
+              git-config-name: pr-preview-action[bot]
+              git-config-email: pr-preview-action[bot]@users.noreply.github.com
 
         - name: Checkout preview branch
           if: env.deployment_action == 'deploy'
@@ -216,8 +210,8 @@ runs:
               target-folder: ${{ env.preview_file_path }}
               commit-message: ${{ inputs.remove-commit-message }}
               force: false
-              git-config-name: ${{ inputs.git-config-name }}
-              git-config-email: ${{ inputs.git-config-email }}
+              git-config-name: pr-preview-action[bot]
+              git-config-email: pr-preview-action[bot]@users.noreply.github.com
 
         - name: Checkout preview branch for removal
           if: env.deployment_action == 'remove'
