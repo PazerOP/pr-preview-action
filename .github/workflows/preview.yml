@@ -51,6 +51,10 @@ on:
                 description: The context string for commit statuses (e.g., shown as the status check name).
                 type: string
                 default: "Preview"
+            deploy-to-pages:
+                description: Whether to upload and deploy the Pages artifact. Set to false for git-only operations.
+                type: boolean
+                default: true
         outputs:
             deployment-action:
                 description: Resolved action (deploy, remove, none).
@@ -66,12 +70,12 @@ permissions:
     id-token: write
     statuses: write
 
-concurrency: preview-${{ github.ref }}
+concurrency: preview-${{ github.ref }}-${{ inputs.pr-number || github.event.number }}
 
 jobs:
     preview:
         runs-on: ubuntu-latest
-        if: github.event.pull_request.head.repo.full_name == github.repository
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         outputs:
             deployment_action: ${{ steps.setup.outputs.deployment_action }}
             preview_url: ${{ steps.setup.outputs.preview_url }}
@@ -124,20 +128,20 @@ jobs:
               shell: bash
 
             - name: Upload Pages artifact
-              if: env.deployment_action == 'deploy'
+              if: env.deployment_action == 'deploy' && inputs.deploy-to-pages
               uses: actions/upload-pages-artifact@v4
               with:
                   path: __gh-pages-content
 
             - name: Deploy to GitHub Pages
               id: pages-deploy
-              if: env.deployment_action == 'deploy'
+              if: env.deployment_action == 'deploy' && inputs.deploy-to-pages
               uses: actions/deploy-pages@v4
 
             - name: Set success commit status
               if: |
                   env.deployment_action == 'deploy' &&
-                  steps.pages-deploy.outcome == 'success'
+                  (steps.pages-deploy.outcome == 'success' || steps.pages-deploy.outcome == 'skipped')
               env:
                   INPUT_TOKEN: ${{ github.token }}
                   INPUT_SHA: ${{ github.event.pull_request.head.sha }}
@@ -149,7 +153,7 @@ jobs:
               if: |
                   env.deployment_action == 'deploy' &&
                   inputs.comment &&
-                  steps.pages-deploy.outcome == 'success'
+                  (steps.pages-deploy.outcome == 'success' || steps.pages-deploy.outcome == 'skipped')
               env:
                   INPUT_TOKEN: ${{ github.token }}
                   INPUT_PR_NUMBER: ${{ inputs.pr-number || github.event.number }}
@@ -183,14 +187,14 @@ jobs:
               shell: bash
 
             - name: Upload Pages artifact for removal
-              if: env.deployment_action == 'remove'
+              if: env.deployment_action == 'remove' && inputs.deploy-to-pages
               uses: actions/upload-pages-artifact@v4
               with:
                   path: __gh-pages-content
 
             - name: Deploy removal to GitHub Pages
               id: pages-deploy-remove
-              if: env.deployment_action == 'remove'
+              if: env.deployment_action == 'remove' && inputs.deploy-to-pages
               uses: actions/deploy-pages@v4
 
             - name: Post remove comment
