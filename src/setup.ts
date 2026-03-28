@@ -142,8 +142,6 @@ const sharedVars: Record<string, string> = {
 
 writeEnvAndOutput(sharedVars, envFile, outputFile);
 
-// env-only vars
-appendToFile(envFile, `empty_dir_path=${fs.mkdtempSync("/tmp/pr-preview-empty-")}\n`);
 
 console.log(`Action: ${deploymentAction}`);
 console.log(`Preview URL: ${previewUrl}`);

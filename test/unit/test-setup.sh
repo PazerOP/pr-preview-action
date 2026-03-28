@@ -44,8 +44,6 @@ assert_contains "$output_content" "preview_url=https://test-owner.github.io/test
 assert_contains "$output_content" "short_sha=abc1234"
 assert_contains "$output_content" "preview_url=https://test-owner.github.io/test-repo/pr-preview/pr-42/?v=abc1234"
 assert_contains "$output_content" "action_version=v1.0.0"
-assert_contains "$env_content" "empty_dir_path="
-
 echo >&2 "test setup: auto action for close event"
 echo >&2 "==============================="
 

@@ -122,7 +122,7 @@ All parameters are optional and have default values.
 
 ## How it works
 
-1. **Push to branch**: Uses [JamesIves/github-pages-deploy-action](https://github.com/JamesIves/github-pages-deploy-action) to push preview files to a subdirectory on the `gh-pages` branch
+1. **Push to branch**: Pushes preview files to a subdirectory on the `gh-pages` branch
 2. **Upload artifact**: Checks out the full `gh-pages` branch and uploads it as a Pages artifact via `actions/upload-pages-artifact`
 3. **Deploy**: Deploys the artifact to GitHub Pages via `actions/deploy-pages`
 4. **Comment**: Posts/updates a sticky PR comment with the preview URL
@@ -134,18 +134,7 @@ The `gh-pages` branch serves as the source of truth for all content (production 
 
 ## Ensure your main deployment is compatible
 
-If you use GitHub Actions to deploy your main site (e.g. on push to main), configure it to not delete the preview umbrella directory:
-
-```yaml
-# .github/workflows/deploy.yml
-steps:
-    - uses: JamesIves/github-pages-deploy-action@v4
-      with:
-          folder: .
-          branch: gh-pages
-          clean-exclude: pr-preview
-          force: false
-```
+If you use GitHub Actions to deploy your main site (e.g. on push to main), configure it to not delete the preview umbrella directory when pushing to `gh-pages`.
 
 ## Set a concurrency group
 
@@ -158,4 +147,3 @@ concurrency: preview-${{ github.ref }}
 # Acknowledgements
 
 -   [rossjrw/pr-preview-action](https://github.com/rossjrw/pr-preview-action) (MIT), the original action this is forked from
--   [JamesIves/github-pages-deploy-action](https://github.com/JamesIves/github-pages-deploy-action) (MIT), used to push preview files to the branch
