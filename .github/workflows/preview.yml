@@ -89,6 +89,13 @@ jobs:
             name: github-pages
             url: ${{ steps.pages-deploy.outputs.page_url || steps.pages-deploy-remove.outputs.page_url }}
         steps:
+            - name: Validate inputs
+              if: inputs.artifact-name != '' && inputs.source-dir != '.'
+              run: |
+                  echo "::error::Cannot specify both 'artifact-name' and 'source-dir'. Use one or the other."
+                  exit 1
+              shell: bash
+
             - name: Checkout caller repository
               if: inputs.artifact-name == ''
               uses: actions/checkout@v6
