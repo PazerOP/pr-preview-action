@@ -82,6 +82,10 @@ if (mode === "deploy") {
         }
         run(`cp -r "${path.join(workspace, sourceDir)}"/. "${dir}/"`);
         (0, inject_cache_bust_1.injectCacheBustScript)(dir);
+        const shortSha = env("short_sha");
+        if (shortSha) {
+            fs.writeFileSync(path.join(dir, "version.txt"), shortSha + "\n");
+        }
     }
     else {
         const target = path.join(dir, targetPath);
@@ -91,6 +95,10 @@ if (mode === "deploy") {
         fs.mkdirSync(target, { recursive: true });
         run(`cp -r "${path.join(workspace, sourceDir)}"/. "${target}/"`);
         (0, inject_cache_bust_1.injectCacheBustScript)(target);
+        const shortSha = env("short_sha");
+        if (shortSha) {
+            fs.writeFileSync(path.join(target, "version.txt"), shortSha + "\n");
+        }
     }
 }
 else {
