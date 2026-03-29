@@ -47,15 +47,27 @@ try {
 }
 
 // Apply changes
-const target = path.join(dir, targetPath);
 if (mode === "deploy") {
-  if (fs.existsSync(target)) {
-    fs.rmSync(target, { recursive: true });
+  if (targetPath === "") {
+    // Root deployment: preserve .git and umbrella dir (pr-preview/)
+    const umbrellaDir = env("INPUT_UMBRELLA_DIR") || "pr-preview";
+    for (const entry of fs.readdirSync(dir)) {
+      if (entry === ".git" || entry === umbrellaDir) continue;
+      fs.rmSync(path.join(dir, entry), { recursive: true });
+    }
+    run(`cp -r "${path.join(workspace, sourceDir)}"/. "${dir}/"`);
+    injectCacheBustScript(dir);
+  } else {
+    const target = path.join(dir, targetPath);
+    if (fs.existsSync(target)) {
+      fs.rmSync(target, { recursive: true });
+    }
+    fs.mkdirSync(target, { recursive: true });
+    run(`cp -r "${path.join(workspace, sourceDir)}"/. "${target}/"`);
+    injectCacheBustScript(target);
   }
-  fs.mkdirSync(target, { recursive: true });
-  run(`cp -r "${path.join(workspace, sourceDir)}"/. "${target}/"`);
-  injectCacheBustScript(target);
 } else {
+  const target = path.join(dir, targetPath);
   if (fs.existsSync(target)) {
     fs.rmSync(target, { recursive: true });
   }
