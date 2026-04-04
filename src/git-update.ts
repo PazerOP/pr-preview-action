@@ -25,7 +25,8 @@ const targetPath = env("INPUT_TARGET_PATH");
 const commitMessage = env("INPUT_COMMIT_MESSAGE");
 const sourceDir = env("INPUT_SOURCE_DIR");
 const workspace = env("GITHUB_WORKSPACE");
-const dir = path.join(workspace, "__gh-pages-content");
+const runnerTemp = env("RUNNER_TEMP") || path.join(workspace, "..");
+const dir = path.join(runnerTemp, "__gh-pages-content");
 
 // Clone or init
 if (fs.existsSync(dir)) {

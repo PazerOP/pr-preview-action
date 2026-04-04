@@ -156,7 +156,7 @@ jobs:
               if: env.deployment_action == 'deploy' && inputs.deploy-to-pages
               uses: actions/upload-pages-artifact@v4
               with:
-                  path: __gh-pages-content
+                  path: ${{ runner.temp }}/__gh-pages-content
 
             - name: Deploy to GitHub Pages
               id: pages-deploy
@@ -217,7 +217,7 @@ jobs:
               if: env.deployment_action == 'remove' && inputs.deploy-to-pages
               uses: actions/upload-pages-artifact@v4
               with:
-                  path: __gh-pages-content
+                  path: ${{ runner.temp }}/__gh-pages-content
 
             - name: Deploy removal to GitHub Pages
               id: pages-deploy-remove
