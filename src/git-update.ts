@@ -82,20 +82,21 @@ if (mode === "deploy") {
   }
 }
 
-// Commit and push
+// Commit and push as a single-commit orphan.
+// Force-pushing an orphan on every deploy/remove caps the preview
+// branch at "current site contents", so it can't accumulate the large
+// preview artifacts (Go binaries, npm tarballs, ...) that get
+// superseded on subsequent runs.
 run('git config user.name "pr-preview-action[bot]"', dir);
 run(
   'git config user.email "pr-preview-action[bot]@users.noreply.github.com"',
   dir,
 );
+const orphanRef = "__pr_preview_action_orphan";
+run(`git checkout --orphan "${orphanRef}"`, dir);
 run("git add -A", dir);
-try {
-  execSync("git diff --cached --quiet", { cwd: dir });
-  console.log("No changes to commit.");
-} catch {
-  run(`git commit -m "${commitMessage}"`, dir);
-}
-run(`git push -u origin "${branch}"`, dir);
+run(`git commit --allow-empty -m "${commitMessage}"`, dir);
+run(`git push --force origin "${orphanRef}:${branch}"`, dir);
 
 // Remove .git so the directory is clean for artifact upload
 fs.rmSync(path.join(dir, ".git"), { recursive: true });

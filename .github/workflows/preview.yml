@@ -72,7 +72,12 @@ permissions:
     id-token: write
     statuses: write
 
-concurrency: preview-${{ github.ref }}-${{ inputs.pr-number || github.event.number || github.sha }}
+# Each push to the preview branch is a force-push of an orphan commit.
+# Two runs racing the force-push would silently clobber one's changes,
+# so serialize all writes globally per preview-branch.
+concurrency:
+    group: pr-preview-action-${{ github.repository }}-${{ inputs.preview-branch }}
+    cancel-in-progress: false
 
 jobs:
     preview:
