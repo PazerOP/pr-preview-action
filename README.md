@@ -101,13 +101,17 @@ All parameters are optional. Either `source-dir` or `artifact-name` must be prov
 
 ## How it works
 
-1. **Push to branch**: Pushes preview files to a subdirectory on the `gh-pages` branch
+1. **Push to branch**: Force-pushes the resolved tree (existing branch contents + the per-PR add/remove for this run) as a single-commit orphan to the `gh-pages` branch
 2. **Upload artifact**: Checks out the full `gh-pages` branch and uploads it as a Pages artifact
 3. **Deploy**: Deploys the artifact to GitHub Pages via `actions/deploy-pages`
 4. **Comment**: Posts/updates a sticky PR comment with the preview URL
 5. **Status**: Sets commit statuses (pending → success/failure) on the PR head SHA
 
 The `gh-pages` branch serves as the source of truth for all content (production + all PR previews). Each deployment uploads the **entire** branch as a single artifact, since `actions/deploy-pages` replaces the whole site.
+
+### Single-commit branch
+
+Each run replaces `gh-pages` with **one orphan commit** containing the post-update tree. The previous history is discarded. This stops the branch from accumulating preview artifacts (which can be large and per-build unique, e.g. cross-compiled binaries) that are unreachable after the next push but otherwise stay in history forever. To make this safe, the workflow serializes all writes globally per `preview-branch` via a `pr-preview-action-<repo>-<branch>` concurrency group with `cancel-in-progress: false`. If you have tooling that depends on `gh-pages` history, expect each run to look like a fresh root commit.
 
 # Considerations
 
