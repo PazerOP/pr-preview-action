@@ -89,6 +89,7 @@ All parameters are optional. Either `source-dir` or `artifact-name` must be prov
 | `pr-number` | The PR number to use for the preview path. <br> Default: from event context |
 | `pages-base-url` | Base URL of the GitHub Pages site. <br> Default: auto-detected |
 | `pages-base-path` | Path that GitHub Pages is served from. <br> Default: `""` |
+| `shared-dirs` | Comma-separated list of directories that should be shared at the root level instead of duplicated into each PR preview subdirectory. During deploy these directories are merged additively into the gh-pages root. During removal, unreferenced files in shared dirs are garbage-collected. <br> Default: `""` |
 | `deploy-commit-message` | Commit message when adding/updating a preview. <br> Default: `Deploy preview for PR {number}` |
 | `remove-commit-message` | Commit message when removing a preview. <br> Default: `Remove preview for PR {number}` |
 

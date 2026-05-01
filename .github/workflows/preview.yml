@@ -53,6 +53,11 @@ on:
                 description: The context string for commit statuses (e.g., shown as the status check name).
                 type: string
                 default: "Preview"
+            shared-dirs:
+                description: Comma-separated list of directory names that should be shared at the root level across all previews instead of duplicated into each PR subdirectory. During deploy, these directories are merged (additively) into the root of the gh-pages branch. During removal, unreferenced files in shared dirs are garbage-collected.
+                required: false
+                type: string
+                default: ""
             deploy-to-pages:
                 description: Whether to upload and deploy the Pages artifact. Set to false for git-only operations.
                 type: boolean
@@ -153,6 +158,7 @@ jobs:
                   INPUT_SOURCE_DIR: ${{ inputs.artifact-name != '' && '__artifact-download' || inputs.source-dir }}
                   INPUT_TARGET_PATH: ${{ env.preview_file_path }}
                   INPUT_UMBRELLA_DIR: ${{ inputs.umbrella-dir }}
+                  INPUT_SHARED_DIRS: ${{ inputs.shared-dirs }}
                   INPUT_COMMIT_MESSAGE: ${{ inputs.deploy-commit-message || (github.event_name == 'pull_request' && format('Deploy preview for PR {0} 🛫', github.event.number)) || format('Deploy from {0}', github.sha) }}
               run: node .pr-preview-action/dist/git-update.js deploy
               shell: bash
@@ -214,6 +220,8 @@ jobs:
                   INPUT_BRANCH: ${{ inputs.preview-branch }}
                   INPUT_TOKEN: ${{ github.token }}
                   INPUT_TARGET_PATH: ${{ env.preview_file_path }}
+                  INPUT_UMBRELLA_DIR: ${{ inputs.umbrella-dir }}
+                  INPUT_SHARED_DIRS: ${{ inputs.shared-dirs }}
                   INPUT_COMMIT_MESSAGE: ${{ inputs.remove-commit-message || (github.event_name == 'pull_request' && format('Remove preview for PR {0} 🛬', github.event.number)) || format('Remove deployment from {0}', github.sha) }}
               run: node .pr-preview-action/dist/git-update.js remove
               shell: bash
