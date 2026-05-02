@@ -74,9 +74,13 @@ permissions:
 
 # Each push to the preview branch is a force-push of an orphan commit.
 # Two runs racing the force-push would silently clobber one's changes,
-# so serialize all writes globally per preview-branch.
+# so serialize all writes globally per repository. The group is intentionally
+# repo-scoped (not preview-branch-scoped) -- multiple workflow runs across
+# different branches/PRs all push to the same preview-branch ref, and in
+# practice runs from sibling branches end up clobbering each other's pushes
+# unless the group is global per repo.
 concurrency:
-    group: pr-preview-action-${{ github.repository }}-${{ inputs.preview-branch }}
+    group: pr-preview-action-${{ github.repository }}
     cancel-in-progress: false
 
 jobs:
