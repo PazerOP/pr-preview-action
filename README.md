@@ -9,7 +9,7 @@ Features:
 -   Updates the deployment and the comment whenever new commits are pushed to the pull request
 -   Sets commit statuses on the PR head SHA to indicate deployment progress
 -   Cache-busted preview URLs ensure you always see the latest content
--   Cleans up after itself &mdash; removes deployed previews when the pull request is closed
+-   Cleans up after itself &mdash; every deploy automatically removes preview directories for closed PRs
 
 Preview URLs look like this: `https://[owner].github.io/[repo]/pr-preview/pr-[number]/`
 
@@ -29,7 +29,7 @@ name: Deploy PR previews
 
 on:
     pull_request:
-        types: [opened, reopened, synchronize, closed]
+        types: [opened, reopened, synchronize]
 
 jobs:
     deploy-preview:
@@ -39,7 +39,7 @@ jobs:
         secrets: inherit
 ```
 
-That's it. Permissions, concurrency, fork safety, and the GitHub Pages environment are all handled internally by the reusable workflow. You don't need to configure any of that.
+That's it. Permissions, concurrency, fork safety, and the GitHub Pages environment are all handled internally by the reusable workflow. You don't need to configure any of that. Cleanup of closed PR previews happens automatically during every deploy.
 
 If your site needs a build step, add a separate job and pass the artifact name:
 
@@ -48,12 +48,11 @@ name: Deploy PR previews
 
 on:
     pull_request:
-        types: [opened, reopened, synchronize, closed]
+        types: [opened, reopened, synchronize]
 
 jobs:
     build:
         runs-on: ubuntu-latest
-        if: github.event.action != 'closed'
         steps:
             - uses: actions/checkout@v6
             - run: npm install && npm run build
@@ -64,14 +63,13 @@ jobs:
 
     deploy-preview:
         needs: build
-        if: always()
         uses: PazerOP/pr-preview-action/.github/workflows/preview.yml@v1
         with:
             artifact-name: build
         secrets: inherit
 ```
 
-The `artifact-name` input tells the workflow to download the named artifact instead of checking out the repository. The build job is skipped on PR close (`if: github.event.action != 'closed'`), and `if: always()` on the deploy job ensures cleanup still runs.
+The `artifact-name` input tells the workflow to download the named artifact instead of checking out the repository.
 
 ## Inputs
 
@@ -83,26 +81,25 @@ All parameters are optional. Either `source-dir` or `artifact-name` must be prov
 | `artifact-name` | Name of a previously-uploaded artifact to use as the deploy source. When set, the sparse checkout of `source-dir` is skipped and the artifact is downloaded instead. |
 | `preview-branch` | Branch to save previews to. <br> Default: `gh-pages` |
 | `umbrella-dir` | Path to the directory containing all previews. <br> Default: `pr-preview` |
-| `action` | `deploy`, `remove`, or `auto`. `auto` deploys on `opened`/`reopened`/`synchronize` and removes on `closed`. <br> Default: `auto` |
+| `action` | `deploy` or `auto`. `auto` deploys on `opened`/`reopened`/`synchronize`. Cleanup of closed PR previews happens automatically during every deploy. <br> Default: `auto` |
 | `comment` | Whether to leave a sticky comment on the PR. <br> Default: `"true"` |
 | `commit-status-context` | The context string for commit statuses. <br> Default: `"Preview"` |
 | `pr-number` | The PR number to use for the preview path. <br> Default: from event context |
 | `pages-base-url` | Base URL of the GitHub Pages site. <br> Default: auto-detected |
 | `pages-base-path` | Path that GitHub Pages is served from. <br> Default: `""` |
-| `shared-dirs` | Comma-separated list of directories that should be shared at the root level instead of duplicated into each PR preview subdirectory. During deploy these directories are merged additively into the gh-pages root. During removal, unreferenced files in shared dirs are garbage-collected. <br> Default: `""` |
+| `shared-dirs` | Comma-separated list of directories that should be shared at the root level instead of duplicated into each PR preview subdirectory. During deploy these directories are merged additively into the gh-pages root. Unreferenced files in shared dirs are garbage-collected when closed PR previews are cleaned up. <br> Default: `""` |
 | `deploy-commit-message` | Commit message when adding/updating a preview. <br> Default: `Deploy preview for PR {number}` |
-| `remove-commit-message` | Commit message when removing a preview. <br> Default: `Remove preview for PR {number}` |
 
 ## Outputs
 
 | Output | Description |
 | --- | --- |
-| `deployment-action` | Resolved value of the `action` input (deploy, remove, none). |
+| `deployment-action` | Resolved value of the `action` input (deploy, none). |
 | `preview-url` | Full URL to the preview (includes `?v={short_sha}` cache-busting param). |
 
 ## How it works
 
-1. **Push to branch**: Force-pushes the resolved tree (existing branch contents + the per-PR add/remove for this run) as a single-commit orphan to the `gh-pages` branch
+1. **Push to branch**: Force-pushes the resolved tree (existing branch contents + the per-PR deploy + cleanup of closed PR previews) as a single-commit orphan to the `gh-pages` branch
 2. **Upload artifact**: Checks out the full `gh-pages` branch and uploads it as a Pages artifact
 3. **Deploy**: Deploys the artifact to GitHub Pages via `actions/deploy-pages`
 4. **Comment**: Posts/updates a sticky PR comment with the preview URL

@@ -49,7 +49,7 @@ export GITHUB_EVENT_PATH="$FIXTURES_DIR/pr-closed.json"
 node dist/setup.js
 
 output_content=$(cat "$GITHUB_OUTPUT")
-assert_contains "$output_content" "deployment_action=remove"
+assert_contains "$output_content" "deployment_action=none"
 
 echo >&2 "test setup: github.io repo URL"
 echo >&2 "==============================="

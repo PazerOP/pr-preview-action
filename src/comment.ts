@@ -21,17 +21,6 @@ function generateDeployComment(): string {
 | <h6>Built to branch [\`${previewBranch}\`](${serverUrl}/${repository}/tree/${previewBranch}) at ${actionStartTime}. <br> Preview is ready! <br><br> </h6>`;
 }
 
-function generateRemoveComment(): string {
-  const actionVersion = env("action_version");
-  const actionStartTime = env("action_start_time");
-
-  return `${COMMENT_HEADER}
-[PR Preview Action](https://github.com/pazerop/pr-preview-action) ${actionVersion}
-:---:
-Preview removed because the pull request was closed.
-${actionStartTime}`;
-}
-
 interface Comment {
   id: number;
   body?: string;
@@ -67,7 +56,7 @@ async function postOrUpdateComment(
   }
 }
 
-export { generateDeployComment, generateRemoveComment, COMMENT_HEADER };
+export { generateDeployComment, COMMENT_HEADER };
 
 async function main(): Promise<void> {
   const deploymentAction = env("deployment_action");
@@ -81,15 +70,12 @@ async function main(): Promise<void> {
     return;
   }
 
-  let body: string;
-  if (deploymentAction === "deploy") {
-    body = generateDeployComment();
-  } else if (deploymentAction === "remove") {
-    body = generateRemoveComment();
-  } else {
-    console.log(`No comment for action: ${deploymentAction}`);
+  if (deploymentAction !== "deploy") {
+    console.error(`No comment for action: ${deploymentAction}`);
     return;
   }
+
+  const body = generateDeployComment();
 
   if (dryRun) {
     process.stdout.write(body);

@@ -38,15 +38,11 @@ on:
                 type: boolean
                 default: true
             action:
-                description: "Determines what this workflow will do when it is executed. Supported values: deploy, remove, auto (default)."
+                description: "Determines what this workflow will do when it is executed. Supported values: deploy, auto (default). Cleanup of closed PR previews happens automatically during every deploy."
                 type: string
                 default: auto
             deploy-commit-message:
                 description: The commit message to use when adding/updating a preview.
-                type: string
-                default: ""
-            remove-commit-message:
-                description: The commit message to use when removing a preview.
                 type: string
                 default: ""
             commit-status-context:
@@ -97,7 +93,7 @@ jobs:
             preview_url: ${{ steps.setup.outputs.preview_url }}
         environment:
             name: github-pages
-            url: ${{ steps.pages-deploy.outputs.page_url || steps.pages-deploy-remove.outputs.page_url }}
+            url: ${{ steps.pages-deploy.outputs.page_url }}
         steps:
             - name: Validate inputs
               if: inputs.artifact-name != '' && inputs.source-dir != '.'
@@ -216,40 +212,3 @@ jobs:
               run: node .pr-preview-action/dist/status.js failure "Preview deployment failed" "${{ env.preview_url }}"
               shell: bash
 
-            # REMOVAL
-
-            - name: Remove preview from branch
-              if: env.deployment_action == 'remove'
-              env:
-                  INPUT_BRANCH: ${{ inputs.preview-branch }}
-                  INPUT_TOKEN: ${{ github.token }}
-                  INPUT_TARGET_PATH: ${{ env.preview_file_path }}
-                  INPUT_UMBRELLA_DIR: ${{ inputs.umbrella-dir }}
-                  INPUT_SHARED_DIRS: ${{ inputs.shared-dirs }}
-                  INPUT_COMMIT_MESSAGE: ${{ inputs.remove-commit-message || (github.event_name == 'pull_request' && format('Remove preview for PR {0} 🛬', github.event.number)) || format('Remove deployment from {0}', github.sha) }}
-              run: node .pr-preview-action/dist/git-update.js remove
-              shell: bash
-
-            - name: Upload Pages artifact for removal
-              if: env.deployment_action == 'remove' && inputs.deploy-to-pages
-              uses: actions/upload-pages-artifact@v4
-              with:
-                  path: ${{ runner.temp }}/__gh-pages-content
-
-            - name: Deploy removal to GitHub Pages
-              id: pages-deploy-remove
-              if: env.deployment_action == 'remove' && inputs.deploy-to-pages
-              uses: actions/deploy-pages@v5
-
-            - name: Post remove comment
-              if: |
-                  env.deployment_action == 'remove' &&
-                  inputs.comment &&
-                  github.event_name == 'pull_request'
-              env:
-                  INPUT_TOKEN: ${{ github.token }}
-                  INPUT_PR_NUMBER: ${{ inputs.pr-number || github.event.number }}
-                  INPUT_PREVIEW_BRANCH: ${{ inputs.preview-branch }}
-                  INPUT_COMMENT: "true"
-              run: node .pr-preview-action/dist/comment.js
-              shell: bash

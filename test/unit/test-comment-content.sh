@@ -29,13 +29,11 @@ assert_file_contains "$comment_file" "$action_version"
 assert_file_contains "$comment_file" "$preview_url"
 assert_file_contains "$comment_file" "pr-preview"
 
-echo >&2 "test comment: removal"
+echo >&2 "test comment: non-deploy action produces no output"
 echo >&2 "==============================="
-export deployment_action="remove"
+export deployment_action="none"
 node dist/comment.js > "$comment_file"
-cat >&2 "$comment_file"
-echo >&2 "==============================="
-
-assert_file_contains "$comment_file" "PR Preview Action"
-assert_file_contains "$comment_file" "$action_version"
-assert_file_contains "$comment_file" "Preview removed"
+if [ -s "$comment_file" ]; then
+    echo -e "\033[0;31mFAIL: expected empty output for non-deploy action\033[0m" >&2
+    exit 1
+fi
