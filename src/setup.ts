@@ -57,10 +57,8 @@ function determineAutoAction(eventName: string, eventPath: string): string {
     case "reopened":
     case "synchronize":
       return "deploy";
-    case "closed":
-      return "remove";
     default:
-      console.error(`unknown event type ${action}; no action to take`);
+      console.error(`event type ${action}; no action to take`);
       return "none";
   }
 }

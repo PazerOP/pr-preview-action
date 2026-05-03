@@ -37,6 +37,7 @@ const child_process_1 = require("child_process");
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const inject_cache_bust_1 = require("./inject-cache-bust");
+const github_1 = require("./github");
 function env(name) {
     return process.env[name] || "";
 }
@@ -121,7 +122,43 @@ function collectReferencedTarballs(packumentDir) {
     return refs;
 }
 /**
- * Garbage-collect shared dirs after a PR removal.
+ * Check whether a pull request is still open.
+ */
+async function isPrOpen(prNumber) {
+    const repo = env("GITHUB_REPOSITORY");
+    try {
+        const pr = (await (0, github_1.githubApi)("GET", `/repos/${repo}/pulls/${prNumber}`));
+        return pr.state === "open";
+    }
+    catch {
+        return true;
+    }
+}
+/**
+ * Remove preview directories for closed PRs, then GC shared dirs.
+ */
+async function cleanupClosedPreviews(ghPagesDir, umbrellaDir, sharedDirs) {
+    const umbrella = path.join(ghPagesDir, umbrellaDir);
+    if (!fs.existsSync(umbrella))
+        return;
+    let removedAny = false;
+    for (const entry of fs.readdirSync(umbrella)) {
+        const match = entry.match(/^pr-(\d+)$/);
+        if (!match)
+            continue;
+        const prNumber = match[1];
+        if (await isPrOpen(prNumber))
+            continue;
+        console.log(`Removing stale preview for PR #${prNumber}`);
+        fs.rmSync(path.join(umbrella, entry), { recursive: true });
+        removedAny = true;
+    }
+    if (removedAny) {
+        gcSharedDirs(ghPagesDir, sharedDirs, umbrellaDir);
+    }
+}
+/**
+ * Garbage-collect shared dirs.
  * For each shared dir, scan all remaining packuments (root + other PR
  * previews) and delete files that are no longer referenced.
  */
@@ -164,37 +201,36 @@ function gcSharedDirs(ghPagesDir, sharedDirs, umbrellaDir) {
         }
     }
 }
-const mode = process.argv[2]; // "deploy" or "remove"
-if (mode !== "deploy" && mode !== "remove") {
-    console.error(`Usage: git-update.ts <deploy|remove>`);
-    process.exit(1);
-}
-const branch = env("INPUT_BRANCH");
-const token = env("INPUT_TOKEN");
-const repo = env("GITHUB_REPOSITORY");
-const targetPath = env("INPUT_TARGET_PATH");
-const commitMessage = env("INPUT_COMMIT_MESSAGE");
-const sourceDir = env("INPUT_SOURCE_DIR");
-const workspace = env("GITHUB_WORKSPACE");
-const runnerTemp = env("RUNNER_TEMP") || path.join(workspace, "..");
-const dir = path.join(runnerTemp, "__gh-pages-content");
-const sharedDirs = parseSharedDirs();
-const umbrellaDir = env("INPUT_UMBRELLA_DIR") || "pr-preview";
-// Clone or init
-if (fs.existsSync(dir)) {
-    fs.rmSync(dir, { recursive: true });
-}
-try {
-    run(`git clone --depth 1 --branch "${branch}" "https://x-access-token:${token}@github.com/${repo}.git" "${dir}"`);
-}
-catch {
-    fs.mkdirSync(dir, { recursive: true });
-    run("git init", dir);
-    run(`git checkout --orphan "${branch}"`, dir);
-    run(`git remote add origin "https://x-access-token:${token}@github.com/${repo}.git"`, dir);
-}
-// Apply changes
-if (mode === "deploy") {
+async function main() {
+    const mode = process.argv[2];
+    if (mode !== "deploy") {
+        console.error(`Usage: git-update.ts deploy`);
+        process.exit(1);
+    }
+    const branch = env("INPUT_BRANCH");
+    const token = env("INPUT_TOKEN");
+    const repo = env("GITHUB_REPOSITORY");
+    const targetPath = env("INPUT_TARGET_PATH");
+    const commitMessage = env("INPUT_COMMIT_MESSAGE");
+    const sourceDir = env("INPUT_SOURCE_DIR");
+    const workspace = env("GITHUB_WORKSPACE");
+    const runnerTemp = env("RUNNER_TEMP") || path.join(workspace, "..");
+    const dir = path.join(runnerTemp, "__gh-pages-content");
+    const sharedDirs = parseSharedDirs();
+    const umbrellaDir = env("INPUT_UMBRELLA_DIR") || "pr-preview";
+    // Clone or init
+    if (fs.existsSync(dir)) {
+        fs.rmSync(dir, { recursive: true });
+    }
+    try {
+        run(`git clone --depth 1 --branch "${branch}" "https://x-access-token:${token}@github.com/${repo}.git" "${dir}"`);
+    }
+    catch {
+        fs.mkdirSync(dir, { recursive: true });
+        run("git init", dir);
+        run(`git checkout --orphan "${branch}"`, dir);
+        run(`git remote add origin "https://x-access-token:${token}@github.com/${repo}.git"`, dir);
+    }
     const sourcePath = path.join(workspace, sourceDir);
     if (targetPath === "") {
         // Root deployment: preserve .git, umbrella dir, and shared dirs
@@ -241,27 +277,22 @@ if (mode === "deploy") {
             fs.writeFileSync(path.join(target, "version.txt"), shortSha + "\n");
         }
     }
+    await cleanupClosedPreviews(dir, umbrellaDir, sharedDirs);
+    // Commit and push as a single-commit orphan.
+    // Force-pushing an orphan on every deploy caps the preview branch at
+    // "current site contents", preventing accumulation of large superseded
+    // artifacts (Go binaries, npm tarballs, ...).
+    run('git config user.name "pr-preview-action[bot]"', dir);
+    run('git config user.email "pr-preview-action[bot]@users.noreply.github.com"', dir);
+    const orphanRef = "__pr_preview_action_orphan";
+    run(`git checkout --orphan "${orphanRef}"`, dir);
+    run("git add -A", dir);
+    run(`git commit --allow-empty -m "${commitMessage}"`, dir);
+    run(`git push --force origin "${orphanRef}:${branch}"`, dir);
+    // Remove .git so the directory is clean for artifact upload
+    fs.rmSync(path.join(dir, ".git"), { recursive: true });
 }
-else {
-    // Remove mode
-    const target = path.join(dir, targetPath);
-    if (fs.existsSync(target)) {
-        fs.rmSync(target, { recursive: true });
-    }
-    // GC unreferenced files from shared dirs
-    gcSharedDirs(dir, sharedDirs, umbrellaDir);
-}
-// Commit and push as a single-commit orphan.
-// Force-pushing an orphan on every deploy/remove caps the preview
-// branch at "current site contents", so it can't accumulate the large
-// preview artifacts (Go binaries, npm tarballs, ...) that get
-// superseded on subsequent runs.
-run('git config user.name "pr-preview-action[bot]"', dir);
-run('git config user.email "pr-preview-action[bot]@users.noreply.github.com"', dir);
-const orphanRef = "__pr_preview_action_orphan";
-run(`git checkout --orphan "${orphanRef}"`, dir);
-run("git add -A", dir);
-run(`git commit --allow-empty -m "${commitMessage}"`, dir);
-run(`git push --force origin "${orphanRef}:${branch}"`, dir);
-// Remove .git so the directory is clean for artifact upload
-fs.rmSync(path.join(dir, ".git"), { recursive: true });
+main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+});
