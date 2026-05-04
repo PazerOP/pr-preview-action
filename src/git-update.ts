@@ -311,15 +311,6 @@ async function main(): Promise<void> {
   run(`git commit --allow-empty -m "${commitMessage}"`, dir);
   run(`git push --force origin "${orphanRef}:${branch}"`, dir);
 
-  // Export the deployed commit SHA for cache keying
-  const deploySha = execSync("git rev-parse HEAD", { cwd: dir })
-    .toString()
-    .trim();
-  const envFile = env("GITHUB_ENV");
-  if (envFile) {
-    fs.appendFileSync(envFile, `deploy_commit_sha=${deploySha}\n`);
-  }
-
   // Remove .git so the directory is clean for artifact upload
   fs.rmSync(path.join(dir, ".git"), { recursive: true });
 }

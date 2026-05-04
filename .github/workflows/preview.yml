@@ -67,6 +67,7 @@ on:
                 value: ${{ jobs.preview.outputs.preview_url }}
 
 permissions:
+    actions: write
     contents: write
     pull-requests: write
     pages: write
@@ -141,24 +142,13 @@ jobs:
 
             # DEPLOYMENT
 
-            - name: Get current gh-pages SHA
-              if: env.deployment_action == 'deploy'
-              id: gh-pages-sha
-              env:
-                  INPUT_TOKEN: ${{ github.token }}
-                  BRANCH: ${{ inputs.preview-branch }}
-              run: |
-                  sha=$(git ls-remote "https://x-access-token:${INPUT_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "${BRANCH}" | cut -f1)
-                  echo "sha=${sha}" >> "$GITHUB_OUTPUT"
-              shell: bash
-
             - name: Restore gh-pages cache
-              if: env.deployment_action == 'deploy' && steps.gh-pages-sha.outputs.sha != ''
+              if: env.deployment_action == 'deploy'
               id: gh-pages-cache
               uses: actions/cache/restore@v4
               with:
                   path: ${{ runner.temp }}/__gh-pages-content
-                  key: gh-pages-deploy-${{ steps.gh-pages-sha.outputs.sha }}
+                  key: gh-pages-deploy
 
             - name: Set pending commit status
               if: env.deployment_action == 'deploy' && github.event_name == 'pull_request'
@@ -183,12 +173,19 @@ jobs:
               run: node .pr-preview-action/dist/git-update.js deploy
               shell: bash
 
+            - name: Delete old gh-pages cache
+              if: env.deployment_action == 'deploy'
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: gh cache delete "gh-pages-deploy" -R "${{ github.repository }}" || true
+              shell: bash
+
             - name: Save gh-pages cache
-              if: env.deployment_action == 'deploy' && env.deploy_commit_sha != ''
+              if: env.deployment_action == 'deploy'
               uses: actions/cache/save@v4
               with:
                   path: ${{ runner.temp }}/__gh-pages-content
-                  key: gh-pages-deploy-${{ env.deploy_commit_sha }}
+                  key: gh-pages-deploy
 
             - name: Upload gh-pages snapshot
               if: env.deployment_action == 'deploy'
