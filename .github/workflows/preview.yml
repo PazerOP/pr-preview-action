@@ -67,7 +67,6 @@ on:
                 value: ${{ jobs.preview.outputs.preview_url }}
 
 permissions:
-    actions: write
     contents: write
     pull-requests: write
     pages: write
@@ -142,13 +141,20 @@ jobs:
 
             # DEPLOYMENT
 
-            - name: Restore gh-pages cache
+            - name: Restore gh-pages from latest snapshot
               if: env.deployment_action == 'deploy'
               id: gh-pages-cache
-              uses: actions/cache/restore@v4
-              with:
-                  path: ${{ runner.temp }}/__gh-pages-content
-                  key: gh-pages-deploy
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  run_id=$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts?name=gh-pages-snapshot&per_page=1" \
+                    --jq '.artifacts[0] | select(.expired == false) | .workflow_run.id' 2>/dev/null) || true
+                  if [ -n "$run_id" ]; then
+                    if gh run download "$run_id" -n gh-pages-snapshot -D "$RUNNER_TEMP/__gh-pages-content" -R "$GITHUB_REPOSITORY" 2>/dev/null; then
+                      echo "cache-hit=true" >> "$GITHUB_OUTPUT"
+                    fi
+                  fi
+              shell: bash
 
             - name: Set pending commit status
               if: env.deployment_action == 'deploy' && github.event_name == 'pull_request'
@@ -173,25 +179,11 @@ jobs:
               run: node .pr-preview-action/dist/git-update.js deploy
               shell: bash
 
-            - name: Delete old gh-pages cache
-              if: env.deployment_action == 'deploy'
-              env:
-                  GH_TOKEN: ${{ github.token }}
-              run: gh cache delete "gh-pages-deploy" -R "${{ github.repository }}" || true
-              shell: bash
-
-            - name: Save gh-pages cache
-              if: env.deployment_action == 'deploy'
-              uses: actions/cache/save@v4
-              with:
-                  path: ${{ runner.temp }}/__gh-pages-content
-                  key: gh-pages-deploy
-
             - name: Upload gh-pages snapshot
               if: env.deployment_action == 'deploy'
               uses: actions/upload-artifact@v4
               with:
-                  name: gh-pages-snapshot-${{ github.run_id }}
+                  name: gh-pages-snapshot
                   path: ${{ runner.temp }}/__gh-pages-content
                   retention-days: 7
 
