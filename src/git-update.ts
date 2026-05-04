@@ -13,6 +13,7 @@ function run(cmd: string, cwd?: string): void {
   execSync(cmd, { stdio: "inherit", cwd });
 }
 
+
 /**
  * Parse the INPUT_SHARED_DIRS env var into an array of directory names.
  * Accepts comma-separated values, trims whitespace, drops empties.
@@ -211,23 +212,33 @@ async function main(): Promise<void> {
   const sharedDirs = parseSharedDirs();
   const umbrellaDir = env("INPUT_UMBRELLA_DIR") || "pr-preview";
 
-  // Clone or init
-  if (fs.existsSync(dir)) {
-    fs.rmSync(dir, { recursive: true });
-  }
+  const snapshotRestored = env("SNAPSHOT_RESTORED") === "true";
 
-  try {
-    run(
-      `git clone --depth 1 --branch "${branch}" "https://x-access-token:${token}@github.com/${repo}.git" "${dir}"`,
-    );
-  } catch {
-    fs.mkdirSync(dir, { recursive: true });
+  if (snapshotRestored && fs.existsSync(dir)) {
+    console.log("Using restored snapshot (skipping clone)");
     run("git init", dir);
     run(`git checkout --orphan "${branch}"`, dir);
     run(
       `git remote add origin "https://x-access-token:${token}@github.com/${repo}.git"`,
       dir,
     );
+  } else {
+    if (fs.existsSync(dir)) {
+      fs.rmSync(dir, { recursive: true });
+    }
+    try {
+      run(
+        `git clone --depth 1 --branch "${branch}" "https://x-access-token:${token}@github.com/${repo}.git" "${dir}"`,
+      );
+    } catch {
+      fs.mkdirSync(dir, { recursive: true });
+      run("git init", dir);
+      run(`git checkout --orphan "${branch}"`, dir);
+      run(
+        `git remote add origin "https://x-access-token:${token}@github.com/${repo}.git"`,
+        dir,
+      );
+    }
   }
 
   const sourcePath = path.join(workspace, sourceDir);
