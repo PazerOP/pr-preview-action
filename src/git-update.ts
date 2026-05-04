@@ -13,6 +13,48 @@ function run(cmd: string, cwd?: string): void {
   execSync(cmd, { stdio: "inherit", cwd });
 }
 
+interface Artifact {
+  id: number;
+  expired: boolean;
+  archive_download_url: string;
+}
+
+interface ArtifactList {
+  artifacts: Artifact[];
+}
+
+async function restoreSnapshot(dir: string): Promise<boolean> {
+  const repo = env("GITHUB_REPOSITORY");
+  try {
+    const data = (await githubApi(
+      "GET",
+      `/repos/${repo}/actions/artifacts?name=gh-pages-snapshot&per_page=1`,
+    )) as ArtifactList;
+
+    const artifact = data.artifacts[0];
+    if (!artifact || artifact.expired) return false;
+
+    console.log(`Downloading snapshot artifact ${artifact.id}...`);
+    const token = env("INPUT_TOKEN");
+    const apiUrl = env("GITHUB_API_URL") || "https://api.github.com";
+    const resp = await fetch(artifact.archive_download_url, {
+      headers: { Authorization: `Bearer ${token}` },
+      redirect: "follow",
+    });
+    if (!resp.ok) return false;
+
+    const zipPath = path.join(env("RUNNER_TEMP") || "/tmp", "gh-pages-cache.zip");
+    fs.writeFileSync(zipPath, Buffer.from(await resp.arrayBuffer()));
+    fs.mkdirSync(dir, { recursive: true });
+    run(`unzip -o "${zipPath}" -d "${dir}"`);
+    fs.rmSync(zipPath);
+    return true;
+  } catch (err) {
+    console.log(`Snapshot restore failed: ${err}`);
+    return false;
+  }
+}
+
 /**
  * Parse the INPUT_SHARED_DIRS env var into an array of directory names.
  * Accepts comma-separated values, trims whitespace, drops empties.
@@ -211,11 +253,14 @@ async function main(): Promise<void> {
   const sharedDirs = parseSharedDirs();
   const umbrellaDir = env("INPUT_UMBRELLA_DIR") || "pr-preview";
 
-  // Restore from cache or clone
-  const cacheHit = env("CACHE_HIT") === "true";
+  if (fs.existsSync(dir)) {
+    fs.rmSync(dir, { recursive: true });
+  }
 
-  if (cacheHit && fs.existsSync(dir)) {
-    console.log("Cache hit -- reusing cached gh-pages content (skipping clone)");
+  const restored = await restoreSnapshot(dir);
+
+  if (restored) {
+    console.log("Restored gh-pages from snapshot artifact (skipping clone)");
     run("git init", dir);
     run(`git checkout --orphan "${branch}"`, dir);
     run(
@@ -223,10 +268,6 @@ async function main(): Promise<void> {
       dir,
     );
   } else {
-    if (fs.existsSync(dir)) {
-      fs.rmSync(dir, { recursive: true });
-    }
-
     try {
       run(
         `git clone --depth 1 --branch "${branch}" "https://x-access-token:${token}@github.com/${repo}.git" "${dir}"`,
