@@ -99,11 +99,14 @@ All parameters are optional. Either `source-dir` or `artifact-name` must be prov
 
 ## How it works
 
-1. **Push to branch**: Force-pushes the resolved tree (existing branch contents + the per-PR deploy + cleanup of closed PR previews) as a single-commit orphan to the `gh-pages` branch
-2. **Upload artifact**: Checks out the full `gh-pages` branch and uploads it as a Pages artifact
-3. **Deploy**: Deploys the artifact to GitHub Pages via `actions/deploy-pages`
-4. **Comment**: Posts/updates a sticky PR comment with the preview URL
-5. **Status**: Sets commit statuses (pending → success/failure) on the PR head SHA
+1. **Restore cache**: Attempts to restore the gh-pages content from a previous deployment's cache (keyed by the current gh-pages commit SHA). On cache hit the git clone is skipped entirely.
+2. **Push to branch**: Force-pushes the resolved tree (existing branch contents + the per-PR deploy + cleanup of closed PR previews) as a single-commit orphan to the `gh-pages` branch
+3. **Save cache**: Saves the deployed tree for future runs (keyed by the new commit SHA)
+4. **Snapshot**: Uploads the full deployment as a regular artifact (`gh-pages-snapshot-<run_id>`, 7-day retention) for disaster recovery
+5. **Upload Pages artifact**: Uploads the tree as a Pages artifact via `actions/upload-pages-artifact`
+6. **Deploy**: Deploys the artifact to GitHub Pages via `actions/deploy-pages`
+7. **Comment**: Posts/updates a sticky PR comment with the preview URL
+8. **Status**: Sets commit statuses (pending -> success/failure) on the PR head SHA
 
 The `gh-pages` branch serves as the source of truth for all content (production + all PR previews). Each deployment uploads the **entire** branch as a single artifact, since `actions/deploy-pages` replaces the whole site.
 

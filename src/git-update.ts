@@ -211,23 +211,35 @@ async function main(): Promise<void> {
   const sharedDirs = parseSharedDirs();
   const umbrellaDir = env("INPUT_UMBRELLA_DIR") || "pr-preview";
 
-  // Clone or init
-  if (fs.existsSync(dir)) {
-    fs.rmSync(dir, { recursive: true });
-  }
+  // Restore from cache or clone
+  const cacheHit = env("CACHE_HIT") === "true";
 
-  try {
-    run(
-      `git clone --depth 1 --branch "${branch}" "https://x-access-token:${token}@github.com/${repo}.git" "${dir}"`,
-    );
-  } catch {
-    fs.mkdirSync(dir, { recursive: true });
+  if (cacheHit && fs.existsSync(dir)) {
+    console.log("Cache hit -- reusing cached gh-pages content (skipping clone)");
     run("git init", dir);
     run(`git checkout --orphan "${branch}"`, dir);
     run(
       `git remote add origin "https://x-access-token:${token}@github.com/${repo}.git"`,
       dir,
     );
+  } else {
+    if (fs.existsSync(dir)) {
+      fs.rmSync(dir, { recursive: true });
+    }
+
+    try {
+      run(
+        `git clone --depth 1 --branch "${branch}" "https://x-access-token:${token}@github.com/${repo}.git" "${dir}"`,
+      );
+    } catch {
+      fs.mkdirSync(dir, { recursive: true });
+      run("git init", dir);
+      run(`git checkout --orphan "${branch}"`, dir);
+      run(
+        `git remote add origin "https://x-access-token:${token}@github.com/${repo}.git"`,
+        dir,
+      );
+    }
   }
 
   const sourcePath = path.join(workspace, sourceDir);
@@ -298,6 +310,15 @@ async function main(): Promise<void> {
   run("git add -A", dir);
   run(`git commit --allow-empty -m "${commitMessage}"`, dir);
   run(`git push --force origin "${orphanRef}:${branch}"`, dir);
+
+  // Export the deployed commit SHA for cache keying
+  const deploySha = execSync("git rev-parse HEAD", { cwd: dir })
+    .toString()
+    .trim();
+  const envFile = env("GITHUB_ENV");
+  if (envFile) {
+    fs.appendFileSync(envFile, `deploy_commit_sha=${deploySha}\n`);
+  }
 
   // Remove .git so the directory is clean for artifact upload
   fs.rmSync(path.join(dir, ".git"), { recursive: true });
