@@ -8,5 +8,6 @@ jobs:
     deploy-preview:
         uses: PazerOP/pr-preview-action/.github/workflows/preview.yml@claude/optimize-gh-pages-deploy-fimlR
         with:
-            source-dir: .
+            source-dir: test/fixtures/lifecycle-init
+            deploy-to-pages: false
         secrets: inherit
