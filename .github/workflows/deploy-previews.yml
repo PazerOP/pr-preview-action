@@ -1,0 +1,12 @@
+name: Deploy PR previews
+
+on:
+    pull_request:
+        types: [opened, reopened, synchronize, closed]
+
+jobs:
+    deploy-preview:
+        uses: PazerOP/pr-preview-action/.github/workflows/preview.yml@claude/optimize-gh-pages-deploy-fimlR
+        with:
+            source-dir: .
+        secrets: inherit
