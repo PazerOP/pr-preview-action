@@ -109,7 +109,7 @@ The `gh-pages` branch serves as the source of truth for all content (production 
 
 ### Single-commit branch
 
-Each run replaces `gh-pages` with **one orphan commit** containing the post-update tree. The previous history is discarded. This stops the branch from accumulating preview artifacts (which can be large and per-build unique, e.g. cross-compiled binaries) that are unreachable after the next push but otherwise stay in history forever. To make this safe, the workflow serializes all writes globally per repository via a `pr-preview-action-<repo>` concurrency group with `cancel-in-progress: false`. If you have tooling that depends on `gh-pages` history, expect each run to look like a fresh root commit.
+Each run replaces `gh-pages` with **one orphan commit** containing the post-update tree. The previous history is discarded. This stops the branch from accumulating preview artifacts (which can be large and per-build unique, e.g. cross-compiled binaries) that are unreachable after the next push but otherwise stay in history forever. To make this safe, the workflow serializes all writes globally per repository via a FIFO queue job backed by a `pr-preview-action-<repo>` concurrency group. If you have tooling that depends on `gh-pages` history, expect each run to look like a fresh root commit.
 
 # Considerations
 

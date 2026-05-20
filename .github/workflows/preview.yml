@@ -67,27 +67,75 @@ on:
                 value: ${{ jobs.preview.outputs.preview_url }}
 
 permissions:
+    actions: read
     contents: write
     pull-requests: write
     pages: write
     id-token: write
     statuses: write
 
-# Each push to the preview branch is a force-push of an orphan commit.
-# Two runs racing the force-push would silently clobber one's changes,
-# so serialize all writes globally per repository. The group is intentionally
-# repo-scoped (not preview-branch-scoped) -- multiple workflow runs across
-# different branches/PRs all push to the same preview-branch ref, and in
-# practice runs from sibling branches end up clobbering each other's pushes
-# unless the group is global per repo.
-concurrency:
-    group: pr-preview-action-${{ github.repository }}
-    cancel-in-progress: false
-
 jobs:
-    preview:
+    # FIFO deploy queue. GitHub's concurrency groups only hold 1 running +
+    # 1 pending job per group; a third arrival bumps the pending one, causing
+    # missed deploys. This job polls the API and waits for all older runs'
+    # preview jobs to finish before releasing, so every invocation completes.
+    # Cost: idle runner minutes during contention (~$0.24 per burst of 5).
+    queue:
         runs-on: ubuntu-latest
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        steps:
+            - name: Wait for deploy slot
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              shell: bash
+              run: |
+                  own_run=${{ github.run_id }}
+                  repo="${{ github.repository }}"
+                  deadline=$(( $(date +%s) + 1800 ))
+
+                  while true; do
+                      if [ "$(date +%s)" -ge "$deadline" ]; then
+                          echo "::warning::Deploy queue timed out after 30m, proceeding"
+                          break
+                      fi
+
+                      blocked=false
+                      older_ids=$(gh api "repos/${repo}/actions/runs?per_page=100" \
+                          --jq "[.workflow_runs[]
+                              | select(.id < ${own_run})
+                              | select(.status == \"in_progress\" or .status == \"queued\" or .status == \"waiting\")
+                              | .id] | .[]" 2>/dev/null || true)
+
+                      for run_id in $older_ids; do
+                          active=$(gh api "repos/${repo}/actions/runs/${run_id}/jobs?per_page=100" \
+                              --jq '[.jobs[]
+                                  | select(.name | (endswith("/ preview") or endswith("/ queue")))
+                                  | select(.status != "completed" and .status != "cancelled" and .status != "skipped")]
+                                  | length' 2>/dev/null || echo "0")
+
+                          if [ "${active}" -gt 0 ]; then
+                              echo "Waiting: run ${run_id} has active preview job"
+                              blocked=true
+                              break
+                          fi
+                      done
+
+                      if [ "$blocked" = "false" ]; then
+                          echo "Deploy slot clear"
+                          break
+                      fi
+
+                      sleep 10
+                  done
+
+    preview:
+        needs: queue
+        runs-on: ubuntu-latest
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        # Safety net: serializes deploys even if the queue logic has a bug.
+        concurrency:
+            group: pr-preview-action-${{ github.repository }}
+            cancel-in-progress: false
         outputs:
             deployment_action: ${{ steps.setup.outputs.deployment_action }}
             preview_url: ${{ steps.setup.outputs.preview_url }}
