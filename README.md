@@ -1,23 +1,31 @@
 # Deploy PR Preview
 
-Deploy previews of pull requests to [GitHub Pages](https://pages.github.com/). Works when GitHub Pages is configured with source set to **GitHub Actions**.
+Deploy previews of pull requests to [buildhost](https://github.com/wow-look-at-my/buildhost) static sites.
 
 Features:
 
--   Creates and deploys previews of pull requests to your GitHub Pages site
+-   Deploys each pull request to its own buildhost site branch (`pr-<number>`)
 -   Leaves a comment on the pull request with a link to the preview so that you and your team can collaborate on new features faster
 -   Updates the deployment and the comment whenever new commits are pushed to the pull request
 -   Sets commit statuses on the PR head SHA to indicate deployment progress
--   Cache-busted preview URLs ensure you always see the latest content
--   Cleans up after itself &mdash; every deploy automatically removes preview directories for closed PRs
+-   Cleans up after itself &mdash; the preview is deleted when the PR is closed
+-   Authenticates to buildhost with GitHub Actions OIDC, so no static secret is required
 
-Preview URLs look like this: `https://[owner].github.io/[repo]/pr-preview/pr-[number]/`
+Preview URLs look like this: `https://sites.[buildhost-domain]/[project]/branch/pr-[number]/`
 
-> **Note:** This is a fork of [rossjrw/pr-preview-action](https://github.com/rossjrw/pr-preview-action) that replaces the "Deploy from a branch" code path with artifact-based deployment via `actions/upload-pages-artifact` + `actions/deploy-pages`.
+> **Note:** This is a fork of [rossjrw/pr-preview-action](https://github.com/rossjrw/pr-preview-action) that deploys to buildhost static sites instead of GitHub Pages.
 
 # Setup
 
-In your repository **Settings** > **Pages**, set the source to **GitHub Actions** (not "Deploy from a branch").
+No repository settings are required. The preview is uploaded to buildhost over
+HTTPS, authenticated with a short-lived GitHub Actions OIDC token. buildhost
+trusts GitHub Actions OIDC directly and **auto-provisions the project** from the
+token's repository claim on the first upload, so there is nothing to create
+ahead of time.
+
+The only requirement is that the calling workflow grants `id-token: write` (for
+OIDC). If your buildhost server is not configured for OIDC, provide a
+`BUILDHOST_TOKEN` repository secret with `write` scope instead.
 
 # Usage
 
@@ -29,30 +37,47 @@ name: Deploy PR previews
 
 on:
     pull_request:
-        types: [opened, reopened, synchronize]
+        types: [opened, reopened, synchronize, closed]
+
+permissions:
+    contents: read
+    pull-requests: write
+    statuses: write
+    id-token: write
 
 jobs:
     deploy-preview:
         uses: PazerOP/pr-preview-action/.github/workflows/preview.yml@v1
         with:
             source-dir: ./build/
+            buildhost-server: https://pazer.build
         secrets: inherit
 ```
 
-That's it. Permissions, concurrency, fork safety, and the GitHub Pages environment are all handled internally by the reusable workflow. You don't need to configure any of that. Cleanup of closed PR previews happens automatically during every deploy.
+Include `closed` in the `types` list so the preview is removed when the PR is
+closed. The permissions block is required &mdash; a reusable workflow cannot
+escalate beyond the permissions the caller grants.
 
-If your site needs a build step, add a separate job and pass the artifact name:
+If your site needs a build step, build it in a separate job and pass the
+artifact name:
 
 ```yaml
 name: Deploy PR previews
 
 on:
     pull_request:
-        types: [opened, reopened, synchronize]
+        types: [opened, reopened, synchronize, closed]
+
+permissions:
+    contents: read
+    pull-requests: write
+    statuses: write
+    id-token: write
 
 jobs:
     build:
         runs-on: ubuntu-latest
+        if: github.event.action != 'closed'
         steps:
             - uses: actions/checkout@v6
             - run: npm install && npm run build
@@ -63,13 +88,17 @@ jobs:
 
     deploy-preview:
         needs: build
+        if: always()
         uses: PazerOP/pr-preview-action/.github/workflows/preview.yml@v1
         with:
             artifact-name: build
         secrets: inherit
 ```
 
-The `artifact-name` input tells the workflow to download the named artifact instead of checking out the repository.
+The `artifact-name` input tells the workflow to download the named artifact
+instead of checking out the repository. The build job is skipped on PR close
+(`if: github.event.action != 'closed'`), and `if: always()` on the deploy job
+ensures the close cleanup still runs.
 
 ## Inputs
 
@@ -78,44 +107,55 @@ All parameters are optional. Either `source-dir` or `artifact-name` must be prov
 | Input&nbsp;parameter | Description |
 | --- | --- |
 | `source-dir` | Directory containing files to deploy. E.g. `./dist/` or `./build/`. Required when `artifact-name` is not set. <br> Default: `"."` |
-| `artifact-name` | Name of a previously-uploaded artifact to use as the deploy source. When set, the sparse checkout of `source-dir` is skipped and the artifact is downloaded instead. |
-| `preview-branch` | Branch to save previews to. <br> Default: `gh-pages` |
-| `umbrella-dir` | Path to the directory containing all previews. <br> Default: `pr-preview` |
-| `action` | `deploy` or `auto`. `auto` deploys on `opened`/`reopened`/`synchronize`. Cleanup of closed PR previews happens automatically during every deploy. <br> Default: `auto` |
+| `artifact-name` | Name of a previously-uploaded artifact to deploy. When set, the checkout of `source-dir` is skipped and the artifact is downloaded instead. |
+| `buildhost-server` | Base URL of the buildhost server. Service subdomains (`sites.`, ...) are derived from this. <br> Default: `https://pazer.build` |
+| `project` | buildhost project name. <br> Default: the repository name (matching buildhost's OIDC auto-provisioning). |
+| `action` | `deploy`, `remove`, or `auto`. `auto` deploys on `opened`/`reopened`/`synchronize` and removes the preview on `closed`. <br> Default: `auto` |
 | `comment` | Whether to leave a sticky comment on the PR. <br> Default: `"true"` |
 | `commit-status-context` | The context string for commit statuses. <br> Default: `"Preview"` |
-| `pr-number` | The PR number to use for the preview path. <br> Default: from event context |
-| `pages-base-url` | Base URL of the GitHub Pages site. <br> Default: auto-detected |
-| `pages-base-path` | Path that GitHub Pages is served from. <br> Default: `""` |
-| `shared-dirs` | Comma-separated list of directories that should be shared at the root level instead of duplicated into each PR preview subdirectory. During deploy these directories are merged additively into the gh-pages root. Unreferenced files in shared dirs are garbage-collected when closed PR previews are cleaned up. <br> Default: `""` |
-| `deploy-commit-message` | Commit message when adding/updating a preview. <br> Default: `Deploy preview for PR {number}` |
+| `pr-number` | The PR number to use for the preview branch (`pr-<number>`). <br> Default: from event context |
+
+## Secrets
+
+| Secret | Description |
+| --- | --- |
+| `BUILDHOST_TOKEN` | Optional. A buildhost API token with `write` scope. When omitted, the action authenticates with a GitHub Actions OIDC token (requires `id-token: write`). Pass it through with `secrets: inherit`. |
 
 ## Outputs
 
 | Output | Description |
 | --- | --- |
-| `deployment-action` | Resolved value of the `action` input (deploy, none). |
+| `deployment-action` | Resolved value of the `action` input (`deploy`, `remove`, `none`). |
 | `preview-url` | Full URL to the preview (includes `?v={short_sha}` cache-busting param). |
 
 ## How it works
 
-1. **Push to branch**: Force-pushes the resolved tree (existing branch contents + the per-PR deploy + cleanup of closed PR previews) as a single-commit orphan to the `gh-pages` branch
-2. **Upload artifact**: Checks out the full `gh-pages` branch and uploads it as a Pages artifact
-3. **Deploy**: Deploys the artifact to GitHub Pages via `actions/deploy-pages`
-4. **Comment**: Posts/updates a sticky PR comment with the preview URL
-5. **Status**: Sets commit statuses (pending → success/failure) on the PR head SHA
+On a pull request the action packages `source-dir` (or the downloaded artifact)
+into a `tar.gz`, mints a GitHub Actions OIDC token (or uses `BUILDHOST_TOKEN`),
+and `PUT`s the archive to the buildhost sites endpoint:
 
-The `gh-pages` branch serves as the source of truth for all content (production + all PR previews). Each deployment uploads the **entire** branch as a single artifact, since `actions/deploy-pages` replaces the whole site.
+```
+PUT https://sites.{buildhost-domain}/{project}/branch/pr-{number}
+```
 
-### Single-commit branch
+buildhost stores each branch as an independent deployment and replaces it
+atomically on every push, so there is no shared mutable branch to race &mdash;
+each PR writes only to its own `pr-<number>` site branch. The preview is served
+at:
 
-Each run replaces `gh-pages` with **one orphan commit** containing the post-update tree. The previous history is discarded. This stops the branch from accumulating preview artifacts (which can be large and per-build unique, e.g. cross-compiled binaries) that are unreachable after the next push but otherwise stay in history forever. To make this safe, the workflow serializes all writes globally per repository via a `pr-preview-action-<repo>` concurrency group with `cancel-in-progress: false`. If you have tooling that depends on `gh-pages` history, expect each run to look like a fresh root commit.
+```
+https://sites.{buildhost-domain}/{project}/branch/pr-{number}/
+```
 
-# Considerations
+A small cache-bust script is injected into the deployed HTML, and the preview
+URL carries a `?v={short_sha}` parameter so reviewers always land on the latest
+build.
 
-## Ensure your main deployment is compatible
+When the PR is closed, the action issues a `DELETE` for the same branch to tear
+the preview down.
 
-If you use GitHub Actions to deploy your main site (e.g. on push to main), configure it to not delete the preview umbrella directory when pushing to `gh-pages`.
+A push to the repository's default branch deploys to a site branch named after
+that branch (for example `main`), giving a stable, non-preview site URL.
 
 # Acknowledgements
 

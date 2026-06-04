@@ -9,16 +9,15 @@ function env(name: string): string {
 function generateDeployComment(): string {
   const actionVersion = env("action_version");
   const previewUrl = env("preview_url");
-  const previewBranch = env("INPUT_PREVIEW_BRANCH") || "gh-pages";
-  const serverUrl = env("GITHUB_SERVER_URL") || "https://github.com";
-  const repository = env("GITHUB_REPOSITORY");
+  const project = env("buildhost_project");
+  const siteBranch = env("site_branch");
   const actionStartTime = env("action_start_time");
 
   return `${COMMENT_HEADER}
 [PR Preview Action](https://github.com/pazerop/pr-preview-action) ${actionVersion}
 :---:
 | :rocket: View preview at <br> ${previewUrl} <br><br>
-| <h6>Built to branch [\`${previewBranch}\`](${serverUrl}/${repository}/tree/${previewBranch}) at ${actionStartTime}. <br> Preview is ready! <br><br> </h6>`;
+| <h6>Deployed to buildhost site \`${project}\` (branch \`${siteBranch}\`) at ${actionStartTime}. <br> Preview is ready! <br><br> </h6>`;
 }
 
 interface Comment {

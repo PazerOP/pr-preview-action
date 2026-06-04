@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "packageManager": "pnpm@10.29.3",
-  "description": "Deploy PR preview to GitHub Pages via GitHub Actions artifact deployment",
+  "description": "Deploy PR previews to buildhost static sites via GitHub Actions",
   "devDependencies": {
     "@types/node": "^22.15.0",
     "ts-node": "^10.9.2",
