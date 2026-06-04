@@ -1,4 +1,8 @@
-name: Deploy PR Preview
+name: Deploy PR Preview (buildhost)
+
+# Thin reusable workflow: deploy a PR preview to buildhost static sites by
+# reusing buildhost's own buildhost-publish-site action. For the GitHub Pages
+# flavour, use pr-preview-action-ghp.yml instead.
 
 on:
     workflow_call:
@@ -14,61 +18,41 @@ on:
                 type: string
                 default: ""
             buildhost-server:
-                description: Base URL of the buildhost server. Service subdomains (sites., dl., ...) are derived from this.
+                description: Base URL of the buildhost server.
                 required: false
                 type: string
                 default: "https://pazer.build"
             project:
-                description: Buildhost project name. Defaults to the repository name (matching buildhost OIDC auto-provisioning).
+                description: Buildhost project name. Defaults to the repository name (buildhost OIDC auto-provisioning).
                 required: false
                 type: string
                 default: ""
             pr-number:
-                description: PR number for the preview branch (pr-<number>). Defaults to the PR number from the event context.
+                description: PR number for the preview branch (pr-<number>). Defaults to the event PR number.
+                required: false
                 type: string
                 default: ""
             comment:
-                description: Whether to leave a sticky comment on the calling PR.
+                description: Whether to leave a sticky comment on the PR with the preview URL.
+                required: false
                 type: boolean
                 default: true
-            action:
-                description: "Determines what this workflow does. Supported values: deploy, remove, auto (default). auto deploys on opened/reopened/synchronize and removes the preview on closed."
-                type: string
-                default: auto
-            commit-status-context:
-                description: The context string for commit statuses (e.g., shown as the status check name).
-                type: string
-                default: "Preview"
-            action-ref:
-                description: >
-                    Git ref of PazerOP/pr-preview-action to load the action scripts from. Defaults to the
-                    reusable workflow's own commit (github.job_workflow_sha). Set this when calling the
-                    workflow from a branch where github.job_workflow_sha is unavailable (it resolves empty
-                    for some reusable-workflow invocations, which otherwise falls back to the default branch).
-                type: string
-                default: ""
         outputs:
-            deployment-action:
-                description: Resolved action (deploy, remove, none).
-                value: ${{ jobs.preview.outputs.deployment_action }}
             preview-url:
-                description: Full URL to the preview.
+                description: URL of the deployed preview.
                 value: ${{ jobs.preview.outputs.preview_url }}
 
-# OIDC (id-token) lets the action authenticate to buildhost with no static
-# secret; buildhost auto-provisions the project from the token's repo claim.
-# pull-requests + statuses are for the sticky comment and commit statuses.
+# id-token lets buildhost-publish-site authenticate to buildhost via OIDC (no
+# static secret); pull-requests is for the sticky comment.
 permissions:
     contents: read
     pull-requests: write
-    statuses: write
     id-token: write
 
-# Each PR (and each pushed branch) is an independent buildhost site branch, so
-# unlike the old single gh-pages ref there is no shared mutable target to race.
-# Serialize per preview branch and let a newer commit supersede an in-flight one.
+# Each PR/branch is an independent buildhost site branch, so serialize per
+# preview branch and let a newer commit supersede an in-flight one.
 concurrency:
-    group: pr-preview-action-${{ github.repository }}-${{ inputs.pr-number || github.event.number || github.ref }}
+    group: pr-preview-buildhost-${{ github.repository }}-${{ inputs.pr-number || github.event.number || github.ref }}
     cancel-in-progress: true
 
 jobs:
@@ -76,8 +60,7 @@ jobs:
         runs-on: ubuntu-latest
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         outputs:
-            deployment_action: ${{ steps.setup.outputs.deployment_action }}
-            preview_url: ${{ steps.setup.outputs.preview_url }}
+            preview_url: ${{ steps.publish.outputs.site_url }}
         steps:
             - name: Validate inputs
               if: inputs.artifact-name != '' && inputs.source-dir != '.'
@@ -86,101 +69,69 @@ jobs:
                   exit 1
               shell: bash
 
-            - name: Checkout action source
-              uses: actions/checkout@v6
-              with:
-                  repository: PazerOP/pr-preview-action
-                  ref: ${{ github.job_workflow_sha || inputs.action-ref }}
-                  path: .pr-preview-action
-
-            - name: Install action dependencies
-              run: npm install --prefix .pr-preview-action --omit=dev
+            - name: Resolve preview branch
+              id: vars
               shell: bash
-
-            - name: Setup preview environment
-              id: setup
               env:
-                  INPUT_ACTION: ${{ inputs.action }}
-                  INPUT_BUILDHOST_SERVER: ${{ inputs.buildhost-server }}
-                  INPUT_PROJECT: ${{ inputs.project }}
-                  INPUT_PR_NUMBER: ${{ inputs.pr-number || github.event.number }}
-                  INPUT_ACTION_REF: ${{ github.job_workflow_sha || inputs.action-ref }}
-                  GITHUB_SHA: ${{ github.sha }}
-              run: node .pr-preview-action/dist/setup.js
-              shell: bash
-
-            # REMOVAL (PR closed)
-
-            - name: Remove preview
-              if: env.deployment_action == 'remove'
-              env:
-                  INPUT_TOKEN: ${{ secrets.BUILDHOST_TOKEN }}
-              run: node .pr-preview-action/dist/cleanup.js
-              shell: bash
-
-            # DEPLOYMENT
+                  PR_NUMBER: ${{ inputs.pr-number }}
+                  EVENT_NAME: ${{ github.event_name }}
+                  EVENT_NUMBER: ${{ github.event.number }}
+                  REF_NAME: ${{ github.ref_name }}
+              run: |
+                  if [ -n "$PR_NUMBER" ]; then
+                      echo "branch=pr-$PR_NUMBER" >> "$GITHUB_OUTPUT"
+                  elif [ "$EVENT_NAME" = "pull_request" ]; then
+                      echo "branch=pr-$EVENT_NUMBER" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "branch=$REF_NAME" >> "$GITHUB_OUTPUT"
+                  fi
 
             - name: Checkout caller repository
-              if: env.deployment_action == 'deploy' && inputs.artifact-name == ''
+              if: inputs.artifact-name == ''
               uses: actions/checkout@v6
               with:
                   sparse-checkout: ${{ inputs.source-dir }}
                   path: __caller
 
-            - name: Download build artifact
-              if: env.deployment_action == 'deploy' && inputs.artifact-name != ''
-              uses: actions/download-artifact@v4
-              with:
-                  name: ${{ inputs.artifact-name }}
-                  path: __artifact-download
-
-            - name: Set pending commit status
-              if: env.deployment_action == 'deploy' && github.event_name == 'pull_request'
-              env:
-                  INPUT_TOKEN: ${{ github.token }}
-                  INPUT_SHA: ${{ github.event.pull_request.head.sha }}
-                  INPUT_CONTEXT: ${{ inputs.commit-status-context }}
-              run: node .pr-preview-action/dist/status.js pending "Deploying preview..." "${{ env.preview_url }}"
-              shell: bash
-
+            # Reuse buildhost's own publish-site action for the upload (tar.gz
+            # PUT to sites.<domain>/<project>/branch/<branch>, OIDC auth, project
+            # auto-provisioned from the repo). The ref must be a literal -- bump
+            # it to a buildhost tag/master once the sites URL fix is released.
             - name: Publish preview to buildhost
-              if: env.deployment_action == 'deploy'
-              env:
-                  INPUT_TOKEN: ${{ secrets.BUILDHOST_TOKEN }}
-                  INPUT_SOURCE_DIR: ${{ inputs.artifact-name != '' && '__artifact-download' || format('__caller/{0}', inputs.source-dir) }}
-                  INPUT_GIT_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
-              run: node .pr-preview-action/dist/publish.js
-              shell: bash
+              id: publish
+              uses: wow-look-at-my/buildhost/.github/actions/buildhost-publish-site@claude/hopeful-meitner-SUp2h
+              with:
+                  server: ${{ inputs.buildhost-server }}
+                  project: ${{ inputs.project }}
+                  branch: ${{ steps.vars.outputs.branch }}
+                  source_dir: ${{ inputs.artifact-name == '' && format('__caller/{0}', inputs.source-dir) || '' }}
+                  artifact_name: ${{ inputs.artifact-name }}
 
-            - name: Set success commit status
-              if: env.deployment_action == 'deploy' && github.event_name == 'pull_request'
+            - name: Comment preview URL
+              if: inputs.comment && github.event_name == 'pull_request'
+              uses: actions/github-script@v7
               env:
-                  INPUT_TOKEN: ${{ github.token }}
-                  INPUT_SHA: ${{ github.event.pull_request.head.sha }}
-                  INPUT_CONTEXT: ${{ inputs.commit-status-context }}
-              run: node .pr-preview-action/dist/status.js success "Preview is live!" "${{ env.preview_url }}"
-              shell: bash
-
-            - name: Post deploy comment
-              if: |
-                  env.deployment_action == 'deploy' &&
-                  inputs.comment &&
-                  github.event_name == 'pull_request'
-              env:
-                  INPUT_TOKEN: ${{ github.token }}
-                  INPUT_PR_NUMBER: ${{ inputs.pr-number || github.event.number }}
-                  INPUT_COMMENT: "true"
-              run: node .pr-preview-action/dist/comment.js
-              shell: bash
-
-            - name: Set failure commit status
-              if: |
-                  failure() &&
-                  env.deployment_action == 'deploy' &&
-                  github.event_name == 'pull_request'
-              env:
-                  INPUT_TOKEN: ${{ github.token }}
-                  INPUT_SHA: ${{ github.event.pull_request.head.sha }}
-                  INPUT_CONTEXT: ${{ inputs.commit-status-context }}
-              run: node .pr-preview-action/dist/status.js failure "Preview deployment failed" "${{ env.preview_url }}"
-              shell: bash
+                  PREVIEW_URL: ${{ steps.publish.outputs.site_url }}
+              with:
+                  script: |
+                      const url = process.env.PREVIEW_URL;
+                      const marker = "<!-- pr-preview-buildhost -->";
+                      const body = [
+                          marker,
+                          ":rocket: **Preview deployed to buildhost**",
+                          "",
+                          url,
+                      ].join("\n");
+                      const { owner, repo } = context.repo;
+                      const issue_number = context.issue.number;
+                      const comments = await github.paginate(github.rest.issues.listComments, {
+                          owner,
+                          repo,
+                          issue_number,
+                      });
+                      const existing = comments.find((c) => c.body && c.body.includes(marker));
+                      if (existing) {
+                          await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+                      } else {
+                          await github.rest.issues.createComment({ owner, repo, issue_number, body });
+                      }

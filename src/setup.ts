@@ -1,25 +1,34 @@
 import * as fs from "fs";
-import { siteUrl } from "./buildhost";
+import * as path from "path";
 
 function env(name: string): string {
   return process.env[name] || "";
 }
 
-/**
- * Derive the buildhost project name from the repository. buildhost's OIDC
- * auto-provisioning names a project after the repo (the part after the owner),
- * lowercased, so we mirror that here.
- */
-function deriveProject(repository: string): string {
-  const repo = repository.split("/").pop() || repository;
-  return repo.toLowerCase();
+function calculatePagesBaseUrl(repo: string): string {
+  const [owner, repoName] = repo.split("/");
+  if (repoName === `${owner}.github.io`) {
+    return `${owner}.github.io`;
+  }
+  return `${owner}.github.io/${repoName}`;
 }
 
-function refToBranch(): string {
-  const refName = env("GITHUB_REF_NAME");
-  if (refName) return refName;
-  const ref = env("GITHUB_REF");
-  return ref.replace(/^refs\/heads\//, "").replace(/^refs\/tags\//, "");
+function normalisePath(p: string): string {
+  return p
+    .replace(/^\.\//, "")
+    .replace(/^\/+/, "")
+    .replace(/\/+$/, "")
+    .replace(/\/+/g, "/");
+}
+
+function removePrefixPath(basePath: string, originalPath: string): string {
+  const normBase = normalisePath(basePath);
+  const normOriginal = normalisePath(originalPath);
+  if (!normBase) return normOriginal;
+  if (normOriginal.startsWith(normBase + "/")) {
+    return normOriginal.slice(normBase.length + 1);
+  }
+  return normOriginal;
 }
 
 function determineAutoAction(eventName: string, eventPath: string): string {
@@ -48,8 +57,6 @@ function determineAutoAction(eventName: string, eventPath: string): string {
     case "reopened":
     case "synchronize":
       return "deploy";
-    case "closed":
-      return "remove";
     default:
       console.error(`event type ${action}; no action to take`);
       return "none";
@@ -74,8 +81,9 @@ function writeEnvAndOutput(
 
 // Main
 const inputAction = env("INPUT_ACTION") || "auto";
-const serverInput = env("INPUT_BUILDHOST_SERVER") || "https://pazer.build";
-const projectInput = env("INPUT_PROJECT");
+const umbrellaDir = env("INPUT_UMBRELLA_DIR") || "pr-preview";
+const pagesBaseUrlInput = env("INPUT_PAGES_BASE_URL");
+const pagesBasePath = env("INPUT_PAGES_BASE_PATH");
 const prNumber = env("INPUT_PR_NUMBER");
 const actionRef = env("INPUT_ACTION_REF") || "unknown";
 const eventName = env("GITHUB_EVENT_NAME");
@@ -84,16 +92,25 @@ const repository = env("GITHUB_REPOSITORY");
 const envFile = env("GITHUB_ENV");
 const outputFile = env("GITHUB_OUTPUT");
 
-const server = serverInput.replace(/\/+$/, "");
-const project = projectInput || deriveProject(repository);
+const pagesBaseUrl = pagesBaseUrlInput || calculatePagesBaseUrl(repository);
 
 const isPrEvent =
   eventName === "pull_request" || eventName === "pull_request_target";
+const previewFilePath = isPrEvent ? `${umbrellaDir}/pr-${prNumber}` : "";
 
-// Each PR gets its own buildhost site branch (pr-<number>); a push deploys
-// under the pushed git branch name. Both map directly onto buildhost's
-// first-class per-branch site deployments.
-const siteBranch = isPrEvent ? `pr-${prNumber}` : refToBranch();
+let previewUrlPath = "";
+if (previewFilePath) {
+  previewUrlPath = removePrefixPath(pagesBasePath, previewFilePath);
+  if (
+    pagesBasePath &&
+    removePrefixPath("", previewFilePath) === previewUrlPath
+  ) {
+    console.warn(
+      `::warning title=pages-base-path doesn't match::The pages-base-path directory (${pagesBasePath}) does not contain umbrella-dir (${umbrellaDir}). pages-base-path has been ignored. The value of umbrella-dir should start with the value of pages-base-path.`,
+    );
+    previewUrlPath = previewFilePath;
+  }
+}
 
 let deploymentAction = inputAction;
 if (deploymentAction === "auto") {
@@ -102,9 +119,11 @@ if (deploymentAction === "auto") {
   console.error(`Auto action is ${deploymentAction}`);
 }
 
-const basePreviewUrl = `${siteUrl(server, project, siteBranch)}/`;
+const basePreviewUrl = previewUrlPath
+  ? `https://${pagesBaseUrl}/${previewUrlPath}/`
+  : `https://${pagesBaseUrl}/`;
 
-// Short SHA for cache busting / display.
+// Get short SHA for cache busting
 let shortSha = "";
 try {
   const event = JSON.parse(fs.readFileSync(eventPath, "utf8"));
@@ -125,13 +144,12 @@ const actionStartTime = new Date()
   .replace("T", " ")
   .replace(/\.\d+Z$/, " UTC");
 
-// Write to both GITHUB_ENV (so later steps can read them) and GITHUB_OUTPUT.
+// Write to both GITHUB_ENV and GITHUB_OUTPUT
 const sharedVars: Record<string, string> = {
   deployment_action: deploymentAction,
-  buildhost_server: server,
-  buildhost_project: project,
-  site_branch: siteBranch,
-  preview_base_url: basePreviewUrl,
+  preview_file_path: previewFilePath,
+  pages_base_url: pagesBaseUrl,
+  preview_url_path: previewUrlPath,
   preview_url: previewUrl,
   short_sha: shortSha,
   action_version: actionRef,
@@ -141,7 +159,6 @@ const sharedVars: Record<string, string> = {
 
 writeEnvAndOutput(sharedVars, envFile, outputFile);
 
+
 console.log(`Action: ${deploymentAction}`);
-console.log(`Project: ${project}`);
-console.log(`Site branch: ${siteBranch}`);
 console.log(`Preview URL: ${previewUrl}`);
