@@ -79,6 +79,9 @@ export GITHUB_EVENT_NAME="push"
 export GITHUB_EVENT_PATH="$FIXTURES_DIR/push.json"
 export GITHUB_REPOSITORY="test-owner/test-repo"
 export GITHUB_REF="refs/heads/main"
+# GITHUB_REF_NAME is set by GitHub per event; set it explicitly so the runner's
+# ambient value (the real branch) doesn't leak into the test.
+export GITHUB_REF_NAME="main"
 export GITHUB_SHA="fedcba9876543210"
 export INPUT_ACTION="auto"
 export INPUT_BUILDHOST_SERVER=""
@@ -104,6 +107,7 @@ echo >&2 "==============================="
 export GITHUB_ENV=$(mktemp)
 export GITHUB_OUTPUT=$(mktemp)
 export GITHUB_REF="refs/heads/feature-branch"
+export GITHUB_REF_NAME="feature-branch"
 
 node dist/setup.js
 
