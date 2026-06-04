@@ -78,11 +78,10 @@ jobs:
 
             # Reuse buildhost's own publish-site action for the upload (tar.gz
             # PUT to sites.<domain>/<project>/branch/<branch>, OIDC auth, project
-            # auto-provisioned from the repo). The ref must be a literal -- bump
-            # it to a buildhost tag/master once the sites URL fix is released.
+            # auto-provisioned from the repo).
             - name: Publish preview to buildhost
               id: publish
-              uses: wow-look-at-my/buildhost/.github/actions/buildhost-publish-site@claude/hopeful-meitner-SUp2h
+              uses: wow-look-at-my/buildhost/.github/actions/buildhost-publish-site@master
               with:
                   server: ${{ inputs.buildhost-server }}
                   project: ${{ inputs.project }}
