@@ -39,6 +39,14 @@ on:
                 description: The context string for commit statuses (e.g., shown as the status check name).
                 type: string
                 default: "Preview"
+            action-ref:
+                description: >
+                    Git ref of PazerOP/pr-preview-action to load the action scripts from. Defaults to the
+                    reusable workflow's own commit (github.job_workflow_sha). Set this when calling the
+                    workflow from a branch where github.job_workflow_sha is unavailable (it resolves empty
+                    for some reusable-workflow invocations, which otherwise falls back to the default branch).
+                type: string
+                default: ""
         outputs:
             deployment-action:
                 description: Resolved action (deploy, remove, none).
@@ -82,7 +90,7 @@ jobs:
               uses: actions/checkout@v6
               with:
                   repository: PazerOP/pr-preview-action
-                  ref: ${{ github.job_workflow_sha }}
+                  ref: ${{ github.job_workflow_sha || inputs.action-ref }}
                   path: .pr-preview-action
 
             - name: Install action dependencies
@@ -96,7 +104,7 @@ jobs:
                   INPUT_BUILDHOST_SERVER: ${{ inputs.buildhost-server }}
                   INPUT_PROJECT: ${{ inputs.project }}
                   INPUT_PR_NUMBER: ${{ inputs.pr-number || github.event.number }}
-                  INPUT_ACTION_REF: ${{ github.job_workflow_sha }}
+                  INPUT_ACTION_REF: ${{ github.job_workflow_sha || inputs.action-ref }}
                   GITHUB_SHA: ${{ github.sha }}
               run: node .pr-preview-action/dist/setup.js
               shell: bash
