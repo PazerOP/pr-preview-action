@@ -1,4 +1,8 @@
-name: Deploy PR Preview
+name: Deploy PR Preview (buildhost)
+
+# Thin reusable workflow: deploy a PR preview to buildhost static sites by
+# reusing buildhost's own buildhost-publish-site action. For the GitHub Pages
+# flavour, use pr-preview-action-ghp.yml instead.
 
 on:
     workflow_call:
@@ -9,91 +13,54 @@ on:
                 type: string
                 default: "."
             artifact-name:
-                description: Name of a previously-uploaded artifact to use as the deploy source. When set, the sparse checkout of source-dir is skipped and the artifact is downloaded instead.
+                description: Name of a previously-uploaded artifact to deploy instead of checking out source-dir.
                 required: false
                 type: string
                 default: ""
-            preview-branch:
-                description: Branch on which the previews will be deployed.
+            buildhost-server:
+                description: Base URL of the buildhost server.
+                required: false
                 type: string
-                default: gh-pages
-            umbrella-dir:
-                description: Path to the directory containing all previews.
-                type: string
-                default: pr-preview
-            pages-base-url:
-                description: URL of the repo's GitHub Pages site.
-                type: string
-                default: ""
-            pages-base-path:
-                description: Path that GitHub Pages is served from.
+                default: "https://pazer.build"
+            project:
+                description: Buildhost project name. Defaults to the repository name (buildhost OIDC auto-provisioning).
+                required: false
                 type: string
                 default: ""
             pr-number:
-                description: The PR number to use for the preview path. Defaults to the PR number from the GitHub event context.
-                type: string
-                default: ""
-            comment:
-                description: Whether to leave a sticky comment on the calling PR.
-                type: boolean
-                default: true
-            action:
-                description: "Determines what this workflow will do when it is executed. Supported values: deploy, auto (default). Cleanup of closed PR previews happens automatically during every deploy."
-                type: string
-                default: auto
-            deploy-commit-message:
-                description: The commit message to use when adding/updating a preview.
-                type: string
-                default: ""
-            commit-status-context:
-                description: The context string for commit statuses (e.g., shown as the status check name).
-                type: string
-                default: "Preview"
-            shared-dirs:
-                description: Comma-separated list of directory names that should be shared at the root level across all previews instead of duplicated into each PR subdirectory. During deploy, these directories are merged (additively) into the root of the gh-pages branch. During removal, unreferenced files in shared dirs are garbage-collected.
+                description: PR number for the preview branch (pr-<number>). Defaults to the event PR number.
                 required: false
                 type: string
                 default: ""
-            deploy-to-pages:
-                description: Whether to upload and deploy the Pages artifact. Set to false for git-only operations.
+            comment:
+                description: Whether to leave a sticky comment on the PR with the preview URL.
+                required: false
                 type: boolean
                 default: true
         outputs:
-            deployment-action:
-                description: Resolved action (deploy, remove, none).
-                value: ${{ jobs.preview.outputs.deployment_action }}
             preview-url:
-                description: Full URL to the preview.
+                description: URL of the deployed preview.
                 value: ${{ jobs.preview.outputs.preview_url }}
 
+# id-token lets buildhost-publish-site authenticate to buildhost via OIDC (no
+# static secret); pull-requests is for the sticky comment.
 permissions:
-    contents: write
+    contents: read
     pull-requests: write
-    pages: write
     id-token: write
-    statuses: write
 
-# Each push to the preview branch is a force-push of an orphan commit.
-# Two runs racing the force-push would silently clobber one's changes,
-# so serialize all writes globally per repository. The group is intentionally
-# repo-scoped (not preview-branch-scoped) -- multiple workflow runs across
-# different branches/PRs all push to the same preview-branch ref, and in
-# practice runs from sibling branches end up clobbering each other's pushes
-# unless the group is global per repo.
+# Each PR/branch is an independent buildhost site branch, so serialize per
+# preview branch and let a newer commit supersede an in-flight one.
 concurrency:
-    group: pr-preview-action-${{ github.repository }}
-    cancel-in-progress: false
+    group: pr-preview-buildhost-${{ github.repository }}-${{ inputs.pr-number || github.event.number || github.ref }}
+    cancel-in-progress: true
 
 jobs:
     preview:
         runs-on: ubuntu-latest
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         outputs:
-            deployment_action: ${{ steps.setup.outputs.deployment_action }}
-            preview_url: ${{ steps.setup.outputs.preview_url }}
-        environment:
-            name: github-pages
-            url: ${{ steps.pages-deploy.outputs.page_url }}
+            preview_url: ${{ steps.publish.outputs.site_url }}
         steps:
             - name: Validate inputs
               if: inputs.artifact-name != '' && inputs.source-dir != '.'
@@ -107,108 +74,38 @@ jobs:
               uses: actions/checkout@v6
               with:
                   sparse-checkout: ${{ inputs.source-dir }}
+                  path: __caller
 
-            - name: Checkout action source
-              uses: actions/checkout@v6
+            # Reuse buildhost's own publish-site action for the upload (tar.gz
+            # PUT to sites.<domain>/<project>/branch/<branch>, OIDC auth, project
+            # auto-provisioned from the repo).
+            - name: Publish preview to buildhost
+              id: publish
+              uses: wow-look-at-my/buildhost/.github/actions/buildhost-publish-site@master
               with:
-                  repository: PazerOP/pr-preview-action
-                  ref: ${{ github.job_workflow_sha }}
-                  path: .pr-preview-action
+                  server: ${{ inputs.buildhost-server }}
+                  project: ${{ inputs.project }}
+                  branch: ${{ inputs.pr-number && format('pr-{0}', inputs.pr-number) || github.event.number && format('pr-{0}', github.event.number) || github.ref_name }}
+                  source_dir: ${{ inputs.artifact-name == '' && format('__caller/{0}', inputs.source-dir) || '' }}
+                  artifact_name: ${{ inputs.artifact-name }}
 
-            - name: Install action dependencies
-              run: npm install --prefix .pr-preview-action --omit=dev
-              shell: bash
-
-            - name: Setup preview environment
-              id: setup
+            - name: Comment preview URL
+              if: inputs.comment && github.event_name == 'pull_request'
+              uses: wow-look-at-my/actions@typescript#latest
               env:
-                  INPUT_ACTION: ${{ inputs.action }}
-                  INPUT_UMBRELLA_DIR: ${{ inputs.umbrella-dir }}
-                  INPUT_PAGES_BASE_URL: ${{ inputs.pages-base-url }}
-                  INPUT_PAGES_BASE_PATH: ${{ inputs.pages-base-path }}
-                  INPUT_PR_NUMBER: ${{ inputs.pr-number || github.event.number }}
-                  INPUT_ACTION_REF: ${{ github.job_workflow_sha }}
-                  GITHUB_SHA: ${{ github.sha }}
-              run: node .pr-preview-action/dist/setup.js
-              shell: bash
-
-            - name: Download build artifact
-              if: inputs.artifact-name != '' && env.deployment_action == 'deploy'
-              uses: actions/download-artifact@v4
+                  GITHUB_TOKEN: ${{ github.token }}
+                  PREVIEW_URL: ${{ steps.publish.outputs.site_url }}
               with:
-                  name: ${{ inputs.artifact-name }}
-                  path: __artifact-download
-
-            # DEPLOYMENT
-
-            - name: Set pending commit status
-              if: env.deployment_action == 'deploy' && github.event_name == 'pull_request'
-              env:
-                  INPUT_TOKEN: ${{ github.token }}
-                  INPUT_SHA: ${{ github.event.pull_request.head.sha }}
-                  INPUT_CONTEXT: ${{ inputs.commit-status-context }}
-              run: node .pr-preview-action/dist/status.js pending "Deploying preview..." "${{ env.preview_url }}"
-              shell: bash
-
-            - name: Deploy preview to branch
-              if: env.deployment_action == 'deploy'
-              env:
-                  INPUT_BRANCH: ${{ inputs.preview-branch }}
-                  INPUT_TOKEN: ${{ github.token }}
-                  INPUT_SOURCE_DIR: ${{ inputs.artifact-name != '' && '__artifact-download' || inputs.source-dir }}
-                  INPUT_TARGET_PATH: ${{ env.preview_file_path }}
-                  INPUT_UMBRELLA_DIR: ${{ inputs.umbrella-dir }}
-                  INPUT_SHARED_DIRS: ${{ inputs.shared-dirs }}
-                  INPUT_COMMIT_MESSAGE: ${{ inputs.deploy-commit-message || (github.event_name == 'pull_request' && format('Deploy preview for PR {0} 🛫', github.event.number)) || format('Deploy from {0}', github.sha) }}
-              run: node .pr-preview-action/dist/git-update.js deploy
-              shell: bash
-
-            - name: Upload Pages artifact
-              if: env.deployment_action == 'deploy' && inputs.deploy-to-pages
-              uses: actions/upload-pages-artifact@v4
-              with:
-                  path: ${{ runner.temp }}/__gh-pages-content
-
-            - name: Deploy to GitHub Pages
-              id: pages-deploy
-              if: env.deployment_action == 'deploy' && inputs.deploy-to-pages
-              uses: actions/deploy-pages@v5
-
-            - name: Set success commit status
-              if: |
-                  env.deployment_action == 'deploy' &&
-                  github.event_name == 'pull_request' &&
-                  (steps.pages-deploy.outcome == 'success' || steps.pages-deploy.outcome == 'skipped')
-              env:
-                  INPUT_TOKEN: ${{ github.token }}
-                  INPUT_SHA: ${{ github.event.pull_request.head.sha }}
-                  INPUT_CONTEXT: ${{ inputs.commit-status-context }}
-              run: node .pr-preview-action/dist/status.js success "Preview is live!" "${{ env.preview_url }}"
-              shell: bash
-
-            - name: Post deploy comment
-              if: |
-                  env.deployment_action == 'deploy' &&
-                  inputs.comment &&
-                  github.event_name == 'pull_request' &&
-                  (steps.pages-deploy.outcome == 'success' || steps.pages-deploy.outcome == 'skipped')
-              env:
-                  INPUT_TOKEN: ${{ github.token }}
-                  INPUT_PR_NUMBER: ${{ inputs.pr-number || github.event.number }}
-                  INPUT_PREVIEW_BRANCH: ${{ inputs.preview-branch }}
-                  INPUT_COMMENT: "true"
-              run: node .pr-preview-action/dist/comment.js
-              shell: bash
-
-            - name: Set failure commit status
-              if: |
-                  failure() &&
-                  env.deployment_action == 'deploy' &&
-                  github.event_name == 'pull_request'
-              env:
-                  INPUT_TOKEN: ${{ github.token }}
-                  INPUT_SHA: ${{ github.event.pull_request.head.sha }}
-                  INPUT_CONTEXT: ${{ inputs.commit-status-context }}
-              run: node .pr-preview-action/dist/status.js failure "Preview deployment failed" "${{ env.preview_url }}"
-              shell: bash
-
+                  script: |
+                      const url: string = process.env.PREVIEW_URL ?? "";
+                      const marker = "<!-- pr-preview-buildhost -->";
+                      const body = `${marker}\n:rocket: **Preview deployed to buildhost**\n\n${url}`;
+                      const { owner, repo } = context.repo;
+                      const issue_number = context.issue.number;
+                      const comments = await octokit.paginate(octokit.rest.issues.listComments, { owner, repo, issue_number });
+                      const existing = comments.find((c: any) => c.body && c.body.includes(marker));
+                      if (existing) {
+                          await octokit.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+                      } else {
+                          await octokit.rest.issues.createComment({ owner, repo, issue_number, body });
+                      }
