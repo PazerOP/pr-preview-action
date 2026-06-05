@@ -38,10 +38,10 @@ on:
                 type: boolean
                 default: true
             public:
-                description: Serve the preview publicly even when the source repo is private, so the preview URL works without a token. Set false to keep previews gated behind buildhost auth.
+                description: Serve the preview publicly even when the source repo is private (the preview URL works without a token). Opt-in -- defaults to false so a private repo's preview stays gated behind buildhost auth unless you explicitly set this to true.
                 required: false
                 type: boolean
-                default: true
+                default: false
         outputs:
             preview-url:
                 description: URL of the deployed preview.
