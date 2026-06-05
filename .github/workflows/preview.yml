@@ -37,6 +37,11 @@ on:
                 required: false
                 type: boolean
                 default: true
+            public:
+                description: Serve the preview publicly even when the source repo is private, so the preview URL works without a token. Set false to keep previews gated behind buildhost auth.
+                required: false
+                type: boolean
+                default: true
         outputs:
             preview-url:
                 description: URL of the deployed preview.
@@ -92,6 +97,7 @@ jobs:
                   branch: ${{ inputs.pr-number && format('pr-{0}', inputs.pr-number) || github.event.number && format('pr-{0}', github.event.number) || github.ref_name }}
                   source_dir: ${{ inputs.artifact-name == '' && format('__caller/{0}', inputs.source-dir) || '' }}
                   artifact_name: ${{ inputs.artifact-name }}
+                  public: ${{ inputs.public }}
 
             - name: Comment preview URL
               if: inputs.comment && github.event_name == 'pull_request'
