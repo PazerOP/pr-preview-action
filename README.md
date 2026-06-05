@@ -35,6 +35,7 @@ on:
 
 permissions:
     contents: read
+    actions: read # only needed when deploying from artifact-name
     pull-requests: write
     id-token: write
 
@@ -68,6 +69,10 @@ artifact name instead of `source-dir`:
             artifact-name: build
         secrets: inherit
 ```
+
+Deploying from `artifact-name` requires the caller to grant `actions: read`
+(see the permissions block above): the workflow downloads the named artifact
+through the Actions REST API, which needs that scope.
 
 ## Inputs
 

@@ -43,9 +43,13 @@ on:
                 value: ${{ jobs.preview.outputs.preview_url }}
 
 # id-token lets buildhost-publish-site authenticate to buildhost via OIDC (no
-# static secret); pull-requests is for the sticky comment.
+# static secret); pull-requests is for the sticky comment. actions: read is
+# needed when artifact-name is used -- buildhost-publish-site downloads the
+# named artifact through the Actions REST API (listWorkflowRunArtifacts +
+# downloadArtifact), which both require it.
 permissions:
     contents: read
+    actions: read
     pull-requests: write
     id-token: write
 
