@@ -84,6 +84,7 @@ through the Actions REST API, which needs that scope.
 | `project` | buildhost project name. <br> Default: the repository name. |
 | `pr-number` | PR number for the preview branch (`pr-<number>`). <br> Default: from event context. |
 | `comment` | Whether to leave a sticky comment with the preview URL. <br> Default: `true` |
+| `public` | Serve the preview publicly even when the source repo is private, so the preview URL works without a token. Set `false` to keep previews gated behind buildhost auth. <br> Default: `true` |
 
 ## Outputs
 
