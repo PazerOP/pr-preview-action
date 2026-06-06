@@ -58,12 +58,6 @@ permissions:
     pull-requests: write
     id-token: write
 
-# Each PR/branch is an independent buildhost site branch, so serialize per
-# preview branch and let a newer commit supersede an in-flight one.
-concurrency:
-    group: pr-preview-buildhost-${{ github.repository }}-${{ inputs.pr-number || github.event.number || github.ref }}
-    cancel-in-progress: true
-
 jobs:
     preview:
         runs-on: ubuntu-latest
